@@ -741,7 +741,16 @@ fn non_utf8_filenames_keep_native_path_identity() {
     let f = Fixture::new(false);
     let name = std::ffi::OsString::from_vec(vec![b'a', 0xff, b'.', b't', b'x', b't']);
     let path = f.root.join(name);
-    fs::write(&path, b"a").unwrap();
+    if let Err(error) = fs::write(&path, b"a") {
+        // APFS/HFS+ reject byte sequences that are not valid UTF-8. On those
+        // filesystems there is no native path to inspect, so skip this Linux-
+        // specific identity check instead of treating the platform limit as
+        // an application failure.
+        if error.raw_os_error() == Some(92) {
+            return;
+        }
+        panic!("failed to create non-UTF-8 test filename: {error}");
+    }
     let id = f.scan();
     assert_eq!(
         f.engine.checked_path(id, 0, false, true).unwrap(),
