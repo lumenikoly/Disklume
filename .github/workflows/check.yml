@@ -1,5 +1,5 @@
 name: Checks
-on: [push, pull_request, workflow_dispatch]
+on: [pull_request]
 permissions:
   contents: read
 jobs:
@@ -10,6 +10,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
@@ -34,6 +35,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev pkg-config
       - run: cargo fmt --all -- --check
@@ -55,7 +57,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - if: runner.os == 'Linux'
         run: |
           sudo apt-get update

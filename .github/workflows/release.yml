@@ -90,7 +90,7 @@ jobs:
           set -euo pipefail
           test -f "$BINARY"
           mkdir -p release-assets
-          arch="${RUNNER_ARCH,,}"
+          arch="$(printf '%s' "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
           extension=""
           if [[ "$RUNNER_OS" == "Windows" ]]; then extension=".exe"; fi
           cp "$BINARY" "release-assets/ClearMap_${VERSION}_${PLATFORM}_${arch}${extension}"

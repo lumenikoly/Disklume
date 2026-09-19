@@ -163,7 +163,7 @@ export class FileMap {
     const ctx = this.ctx, { x, y, scale } = this.camera;
     const dpr = this.canvas.width / Math.max(1, this.width);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = '#fbfcfa'; ctx.fillRect(0, 0, this.width, this.height);
+    ctx.fillStyle = '#fcfaf5'; ctx.fillRect(0, 0, this.width, this.height);
     ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
     for (const band of this.layout.bands) {
       ctx.beginPath(); ctx.arc(0, 0, band.outer, 0, Math.PI * 2); ctx.strokeStyle = '#d5ded0'; ctx.lineWidth = 1 / scale; ctx.setLineDash([2 / scale, 7 / scale]); ctx.stroke();
@@ -218,7 +218,7 @@ export class FileMap {
     if (scale < 0.9) {
       for (const b of this.layout.bands) {
         const py = y + b.outer * scale;
-        if (py > 20 && py < this.height - 12) { ctx.fillStyle = '#fbfcfa'; ctx.fillRect(x - 63, py - 7, 126, 15); ctx.fillStyle = '#70816b'; ctx.fillText(ageLabel(b.age), x, py + 4); }
+        if (py > 20 && py < this.height - 12) { ctx.fillStyle = '#fcfaf5'; ctx.fillRect(x - 63, py - 7, 126, 15); ctx.fillStyle = '#70816b'; ctx.fillText(ageLabel(b.age), x, py + 4); }
       }
     }
     // At the overview scale, identify dominant files without forcing text into
