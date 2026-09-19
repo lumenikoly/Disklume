@@ -21,7 +21,7 @@ jobs:
     outputs:
       tag: ${{ steps.version.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Validate release source and version
@@ -60,8 +60,8 @@ jobs:
             binary: target/release/clearmap
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -94,7 +94,7 @@ jobs:
           extension=""
           if [[ "$RUNNER_OS" == "Windows" ]]; then extension=".exe"; fi
           cp "$BINARY" "release-assets/ClearMap_${VERSION}_${PLATFORM}_${arch}${extension}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: release-${{ matrix.platform }}
           path: release-assets/*
@@ -106,8 +106,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
         with:
           pattern: release-*
           path: release-assets
