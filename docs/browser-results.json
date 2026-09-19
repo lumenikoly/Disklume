@@ -1,0 +1,22 @@
+{
+  "version": "0.0.1",
+  "date": "2026-09-19",
+  "platform": "Windows x64",
+  "runner": "npm run test:e2e (@playwright/test 1.55.1)",
+  "passed": 11,
+  "failed": 0,
+  "tests": [
+    "language switch translates controls and preserves the current plan",
+    "demo never invokes native APIs",
+    "map and controls fit supported window sizes",
+    "search and selection open the correct inspector",
+    "Delete stages a plan; review cancellation does not delete",
+    "confirmation removes only the chosen synthetic file",
+    "duplicates require an explicit check and filters compose",
+    "help uses a native dialog and Escape closes it",
+    "folders show recursive sizes and navigate down and up without selecting directories",
+    "folder filters, pagination and language stay in the current directory",
+    "folder select-all selects only visible files and never child directories"
+  ],
+  "scope": "Synthetic DemoBackend data; not a real system Trash test"
+}

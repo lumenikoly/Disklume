@@ -1,0 +1,1 @@
+{"main":{"identifier":"main","description":"Local application window; no arbitrary filesystem, shell, opener or network permissions.","local":true,"windows":["main"],"permissions":["core:default","allow-clearmap"]}}

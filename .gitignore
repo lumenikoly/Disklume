@@ -1,0 +1,10 @@
+node_modules/
+target/
+dist/
+playwright-report/
+test-results/
+release/
+.DS_Store
+Thumbs.db
+*.log
+# Cargo.lock and package-lock.json are release inputs and must be committed.

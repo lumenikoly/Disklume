@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-find-duplicates"
+description = "Enables the find_duplicates command without any pre-configured scope."
+commands.allow = ["find_duplicates"]
+
+[[permission]]
+identifier = "deny-find-duplicates"
+description = "Denies the find_duplicates command without any pre-configured scope."
+commands.deny = ["find_duplicates"]

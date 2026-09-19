@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-plan-clear"
+description = "Enables the plan_clear command without any pre-configured scope."
+commands.allow = ["plan_clear"]
+
+[[permission]]
+identifier = "deny-plan-clear"
+description = "Denies the plan_clear command without any pre-configured scope."
+commands.deny = ["plan_clear"]

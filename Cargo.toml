@@ -1,0 +1,18 @@
+[workspace]
+members = ["crates/clearmap-core", "src-tauri"]
+default-members = ["crates/clearmap-core"]
+resolver = "2"
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
+[workspace.lints.rust]
+unsafe_code = "deny"

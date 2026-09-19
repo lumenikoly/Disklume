@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>ClearMap</title>
+  <link rel="icon" href="./mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app/main.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <a class="brand" href="#" id="brand" aria-label="ClearMap — к началу"><img src="./mark.svg" alt="" width="29" height="29"><span>ClearMap</span><span class="version">0.0.1</span></a>
+      <span class="top-divider"></span>
+      <button id="choose-folder" class="folder-button" title="Выбрать папку (Ctrl / ⌘ + O)"><span data-icon="folder"></span><span id="folder-name">Выбрать папку</span><span class="tiny-arrow">⌄</span></button>
+      <div class="top-spacer"></div>
+      <label class="search"><span data-icon="search"></span><input id="search" type="search" placeholder="Найти файл…" aria-label="Поиск по имени или пути" maxlength="1024" autocomplete="off"><kbd>⌘ / Ctrl F</kbd></label>
+      <button class="icon-button" id="rescan" disabled title="Сканировать заново" aria-label="Сканировать заново"><span data-icon="refresh"></span></button>
+      <button class="icon-button" id="help" title="Как это работает" aria-label="Как это работает"><span data-icon="help"></span></button>
+      <button class="language-button" id="language" type="button" title="English / Русский" aria-label="English / Русский">EN</button>
+    </header>
+    <main id="welcome" class="welcome">
+      <section class="welcome-copy">
+        <h1>Карта файлов</h1>
+        <p>Размер, тип и дата изменения файлов.</p>
+        <div class="welcome-actions"><button class="primary" id="welcome-choose"><span data-icon="folder"></span>Выбрать папку</button></div>
+        <div class="privacy-note"><span data-icon="shield"></span><span>Без аккаунта. Без отправки файлов.<br>Удаление — только через системную Корзину.</span></div>
+      </section>
+      <div class="welcome-art" aria-hidden="true">
+        <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div><div class="orbit orbit-c"></div>
+        <div class="art-point"></div>
+        <div class="art-bubble art-video"><span>14,6 ГиБ</span><small>Старое видео</small></div>
+        <div class="art-bubble art-image"><span>Фото</span></div>
+        <div class="art-bubble art-archive"><span>4,2 ГиБ</span><small>Образ диска</small></div>
+        <div class="art-bubble art-document"></div><div class="art-bubble art-small"></div><div class="art-bubble art-audio"></div>
+        <span class="art-caption">Чем больше круг — тем больше файл</span>
+      </div>
+      <div class="welcome-bottom" hidden></div>
+    </main>
+    <main id="workspace" hidden>
+      <section class="summary">
+        <div class="summary-title"><div class="eyebrow" id="folder-path">ЛОКАЛЬНАЯ ПАПКА</div><h1 id="title">Загрузки</h1><p id="subtitle" hidden></p></div>
+        <div class="summary-stats"><div><span id="total-size">—</span><small>занято файлами</small></div><div class="stat-divider"></div><div><span id="total-count">—</span><small>файлов в папке</small></div></div>
+      </section>
+      <section class="controls" aria-label="Фильтры">
+        <div class="quick-filters">
+          <button class="chip" id="filter-large"><span data-icon="expand"></span>Крупнее 1 ГиБ</button>
+          <button class="chip" id="filter-old"><span data-icon="clock"></span>Старше года</button>
+          <button class="chip" id="filter-duplicates"><span data-icon="copy"></span>Дубликаты <span id="duplicate-badge" class="chip-count" hidden>0</span></button>
+          <button class="chip" id="filter-screenshots"><span data-icon="image"></span>Скриншоты</button>
+          <button class="text-button subtle" id="clear-filters" hidden>Сбросить фильтры</button>
+          <div class="top-spacer"></div><button class="text-button subtle" id="find-duplicates"><span data-icon="scan"></span>Проверить совпадения</button>
+        </div>
+        <nav id="categories" class="categories" aria-label="Типы файлов"></nav>
+      </section>
+      <section class="map-shell">
+        <div class="map-toolbar">
+          <div class="view-switch browse-switch" aria-label="Группировка"><button id="browse-files" class="active" aria-pressed="true">Файлы</button><button id="browse-folders" aria-pressed="false">Папки</button></div>
+          <span id="view-count" class="muted"></span>
+          <div class="top-spacer"></div>
+          <label class="metric-select"><select id="metric" aria-label="Показатель размера"><option value="allocated">Размер на диске</option><option value="logical">Размер содержимого</option></select></label>
+          <div class="view-switch" id="file-view-switch" aria-label="Вид"><button id="mode-map" class="active" aria-label="Карта" title="Карта"><span data-icon="circles"></span></button><button id="mode-list" aria-label="Список" title="Список"><span data-icon="list"></span></button></div>
+        </div>
+        <nav id="breadcrumbs" class="breadcrumbs pathbar" aria-label="Путь"><span class="map-label">Карта файлов</span></nav>
+        <div class="surface" id="surface">
+          <div id="map-region" class="map-region"><canvas id="map" aria-label="Карта файлов. Для клавиатурной навигации используйте вид «Список»." tabindex="0"></canvas>
+            <div class="map-tools"><button class="icon-button" id="zoom-out" aria-label="Уменьшить" title="Уменьшить">−</button><button class="icon-button" id="fit" aria-label="Показать всю карту" title="Показать всю карту"><span data-icon="fit"></span></button><button class="icon-button" id="zoom-in" aria-label="Увеличить" title="Увеличить">+</button></div>
+            <div class="map-hint" id="map-hint">Колесо — масштаб · фон — перемещение · Shift — рамка</div>
+          </div>
+          <div id="file-list" class="file-list" hidden></div>
+          <div class="empty-state" id="empty-state" hidden><span data-icon="search"></span><h2>Здесь пока ничего нет</h2><p id="empty-message">Попробуйте изменить фильтры.</p></div>
+          <aside id="inspector" class="inspector" aria-label="Выбранные файлы" hidden></aside>
+          <div id="drag-label" class="drag-label" hidden></div>
+        </div>
+        <div class="map-bottom"><span id="selection-info">Выберите круг, чтобы увидеть файл</span><span class="muted" id="scale-note">Площадь = размер · пунктир = группа · точки меньше 1 пикселя условны</span></div>
+      </section>
+      <section class="actionbar" id="actionbar">
+        <div id="plan-empty" class="plan-empty"><span data-icon="shield"></span><span>Сначала выберите файлы.<small>Ничего не удаляется без подтверждения.</small></span></div>
+        <div id="plan-summary" class="plan-summary" hidden><span class="plan-icon" data-icon="trash"></span><div><strong id="plan-size"></strong><span id="plan-count"></span></div><button class="text-button subtle" id="plan-clear">Сбросить</button></div>
+        <div class="top-spacer"></div>
+        <button id="dropzone" class="dropzone" disabled><span data-icon="trash"></span><span id="dropzone-text">В список удаления</span></button>
+        <button id="review-open" class="primary" hidden>Проверить и удалить <span>→</span></button>
+      </section>
+      <footer class="statusbar"><div class="status-left"><span id="status-indicator" class="status-dot"></span><span id="status-text">Готово</span><button id="cancel-job" class="text-button" hidden>Остановить</button><button id="show-issues" class="text-button warning" hidden></button></div><span class="local-label"><span data-icon="lock"></span>Только на этом компьютере</span></footer>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden><span id="toast-message"></span><button id="toast-close" class="icon-button" aria-label="Закрыть уведомление">×</button></div>
+  <dialog id="review" class="review-dialog"><div class="dialog-head"><div><span class="eyebrow">ПРОВЕРКА ПЕРЕД УБОРКОЙ</span><h2>Переместить в Корзину?</h2></div><button id="review-close" class="icon-button" aria-label="Закрыть">×</button></div><p class="dialog-note">Файлы можно восстановить средствами системы. Свободное место обычно появится только после очистки Корзины. Приложение её не очищает.</p><div id="review-summary" class="review-summary"></div><div id="review-files" class="review-files"></div><div id="review-pagination" class="pagination"></div><div class="dialog-actions"><span class="muted">Только выбранные файлы</span><div class="top-spacer"></div><button id="review-cancel" class="secondary">Назад</button><button id="review-confirm" class="danger">Переместить в Корзину</button></div></dialog>
+  <dialog id="message-dialog" class="message-dialog"><div class="dialog-head"><h2 id="message-title"></h2><button id="message-close" class="icon-button" aria-label="Закрыть">×</button></div><div id="message-body" class="message-body"></div><div class="dialog-actions"><div class="top-spacer"></div><button id="message-cancel" class="secondary">Отмена</button><button id="message-confirm" class="primary">Понятно</button></div></dialog>
+</body>
+</html>

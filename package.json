@@ -1,0 +1,27 @@
+{
+  "name": "clearmap",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Локальная карта файлов и безопасная уборка через системную Корзину",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "test:e2e": "playwright test",
+    "tauri": "tauri",
+    "desktop": "tauri dev",
+    "check:core": "cargo test -p clearmap-core",
+    "check": "npm run typecheck && npm test && cargo test -p clearmap-core",
+    "serve:test": "node scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.1",
+    "@tauri-apps/cli": "2.11.4",
+    "typescript": "5.8.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
