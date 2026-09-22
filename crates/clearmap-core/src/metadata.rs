@@ -115,8 +115,30 @@ pub fn hard_link(meta: &Metadata) -> bool {
         false
     }
 }
+pub fn same_file_system(root: Option<Identity>, _path: &Path, meta: &Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        root.is_some_and(|identity| identity.volume == meta.dev())
+    }
+    #[cfg(windows)]
+    {
+        // Windows mount points are reparse points and are rejected before this
+        // function. Do not open every ordinary directory for another volume query.
+        let _ = (root, _path, meta);
+        true
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (root, _path, meta);
+        true
+    }
+}
 pub fn executable(path: &Path, meta: &Metadata) -> bool {
-    if classify(path) == Category::Executable {
+    executable_in_category(path, meta, classify(path))
+}
+pub(crate) fn executable_in_category(path: &Path, meta: &Metadata, category: Category) -> bool {
+    if category == Category::Executable {
         return true;
     }
     #[cfg(windows)]
@@ -186,7 +208,10 @@ pub fn classify(path: &Path) -> Category {
     }
 }
 pub fn screenshot(path: &Path) -> bool {
-    if classify(path) != Category::Image {
+    screenshot_in_category(path, classify(path))
+}
+pub(crate) fn screenshot_in_category(path: &Path, category: Category) -> bool {
+    if category != Category::Image {
         return false;
     }
     let name = path
@@ -297,6 +322,36 @@ pub fn validate(
             return Err(
                 "Файл изменился после сканирования. Обновите папку перед операцией.".into(),
             );
+        }
+    }
+    Ok(path)
+}
+
+pub fn validate_directory(
+    root: &Path,
+    root_identity: Option<Identity>,
+    relative: &Path,
+) -> Result<std::path::PathBuf> {
+    validate_root_path(root)?;
+    let root_meta =
+        fs::symlink_metadata(root).map_err(|e| format!("Исходная папка недоступна: {e}"))?;
+    if !root_meta.is_dir()
+        || is_link_or_placeholder(&root_meta)
+        || root_identity.is_none()
+        || identity(root, &root_meta) != root_identity
+    {
+        return Err("Исходная папка была заменена или стала ссылкой. Выберите её заново.".into());
+    }
+    let mut path = root.to_path_buf();
+    for component in relative.components() {
+        let Component::Normal(name) = component else {
+            return Err("Некорректный путь папки в индексе.".into());
+        };
+        path.push(name);
+        let meta = fs::symlink_metadata(&path)
+            .map_err(|e| format!("Папка недоступна или была перемещена: {e}"))?;
+        if !meta.is_dir() || is_link_or_placeholder(&meta) {
+            return Err("Путь папки изменился или содержит точку перенаправления.".into());
         }
     }
     Ok(path)

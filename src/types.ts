@@ -9,7 +9,7 @@ export interface FileSummary {
 }
 export interface FileDetail { file: FileSummary; path: string; duplicates: FileSummary[]; duplicateCount: number }
 export interface Cursor { bytes: number; id: number }
-export interface Bucket { category: Category; age: number; screenshot: boolean; after: Cursor }
+export interface Bucket { category: Category; age: number; screenshot: boolean; after: Cursor; through: Cursor }
 export interface Filter {
   text: string; category: Category | null; minBytes: number; olderDays: number | null;
   duplicatesOnly: boolean; screenshotsOnly: boolean; metric: Metric; bucket: Bucket | null; duplicateGroup: number | null;
@@ -51,6 +51,7 @@ export interface Backend {
   executePlan(scanId: number, planRevision: number): Promise<void>;
   open(scanId: number, id: number, allowExecutable: boolean): Promise<void>;
   reveal(scanId: number, id: number): Promise<void>;
+  revealDirectory(scanId: number, id: number): Promise<void>;
 }
 export const defaultFilter = (): Filter => ({ text: '', category: null, minBytes: 0, olderDays: null, metric: 'allocated', bucket: null, duplicateGroup: null, duplicatesOnly: false, screenshotsOnly: false, folders: false, directoryId: null });
 export const busy = (phase: Phase | undefined): boolean => phase === 'scanning' || phase === 'hashing' || phase === 'deleting';

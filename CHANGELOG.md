@@ -1,3 +1,23 @@
+# 0.0.2
+
+## Русский
+
+- Режим «Папки» теперь открывается по умолчанию после запуска и выбора папки.
+- Исправлено раскрытие больших групп на карте: сотни тысяч однотипных файлов делятся на ограниченные диапазоны, поэтому до отдельных файлов можно добраться за несколько переходов, без потерь и повторов.
+- Сохранены ограничения сцены: до 480 отдельных файлов и 96 групп на одном уровне.
+- Обход каталогов выполняется ограниченным пулом до восьми потоков; публикация результатов в индекс остаётся сериализованной, а ссылки и точки перенаправления отсекаются до постановки каталога в очередь.
+- Добавлено контекстное меню файлов и папок: файл можно открыть или показать в Проводнике Windows, Finder либо файловом менеджере Linux; папку можно показать после повторной проверки её ID и пути в ядре.
+
+## English
+
+- Folder view now opens by default after startup and folder selection.
+- Fixed drill-down for large map groups: hundreds of thousands of similarly classified files are split into bounded ranges, making individual files reachable in a few steps without omissions or duplicates.
+- Preserved scene bounds of up to 480 individual files and 96 groups per level.
+- Directory traversal now uses a bounded pool of up to eight workers; index publication remains serialized, and links or reparse points are rejected before a directory is queued.
+- Added file and folder context menus with platform-specific File Explorer, Finder, or Linux file-manager labels; folders are revealed only after their ID and path are revalidated by the core.
+
+See [verification / проверки](docs/VERIFICATION.md) for tested platforms and remaining release checks.
+
 # 0.0.1
 
 ## Русский

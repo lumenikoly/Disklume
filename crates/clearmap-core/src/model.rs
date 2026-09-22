@@ -137,6 +137,7 @@ pub struct Bucket {
     pub age: u8,
     pub screenshot: bool,
     pub after: Cursor,
+    pub through: Cursor,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]

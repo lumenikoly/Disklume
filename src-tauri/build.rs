@@ -16,6 +16,7 @@ fn main() {
         "execute_plan",
         "open_file",
         "reveal_file",
+        "reveal_directory",
     ];
     tauri_build::try_build(
         tauri_build::Attributes::new()

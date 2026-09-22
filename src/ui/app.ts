@@ -6,11 +6,12 @@ import { FileMap } from '../map/renderer.js';
 import { el, disable, on, show, text } from './dom.js';
 import { icon } from './icons.js';
 import { MessageDialog } from './dialog.js';
+import { revealLabel } from '../platform.js';
 
 export class App {
   private status: Status | null = null;
   private view: View | null = null;
-  private filter = defaultFilter();
+  private filter = { ...defaultFilter(), folders: true };
   private selection = new Set<number>();
   private planned = new Set<number>();
   private detail: FileDetail | null = null;
@@ -30,6 +31,7 @@ export class App {
   private fitNext = true;
   private reviewPage: PlanPage | null = null;
   private reviewLoading = false;
+  private contextTarget: { fileId: number } | { directoryId: number } | null = null;
   private events = new AbortController();
   constructor(private backend: Backend) {
     try { const metric = localStorage.getItem('clearmap.metric'); if (metric === 'logical' || metric === 'allocated') this.filter.metric = metric; } catch { /* Settings are optional. */ }
@@ -100,6 +102,25 @@ export class App {
       const row = (event.target as Element).closest<HTMLElement>('[data-file-id]');
       if (row && !(event.target instanceof HTMLInputElement)) void this.openFile(Number(row.dataset.fileId));
     });
+    el('file-list').addEventListener('contextmenu', (event) => {
+      const row = (event.target as Element).closest<HTMLElement>('tr[data-file-id], tr[data-directory-id]');
+      if (!row) return;
+      event.preventDefault();
+      if (row.dataset.fileId !== undefined) this.showContextMenu({ fileId: Number(row.dataset.fileId) }, event.clientX, event.clientY);
+      else if (row.dataset.directoryId !== undefined) this.showContextMenu({ directoryId: Number(row.dataset.directoryId) }, event.clientX, event.clientY);
+    });
+    el('context-menu').addEventListener('click', (event) => {
+      const button = (event.target as Element).closest<HTMLButtonElement>('[data-context-action]');
+      const target = this.contextTarget;
+      if (!button || !target) return;
+      this.hideContextMenu();
+      if (button.dataset.contextAction === 'open' && 'fileId' in target) void this.openFile(target.fileId);
+      if (button.dataset.contextAction === 'reveal-file' && 'fileId' in target) void this.act(async (scanId) => this.backend.reveal(scanId, target.fileId));
+      if (button.dataset.contextAction === 'reveal-directory' && 'directoryId' in target) void this.act(async (scanId) => this.backend.revealDirectory(scanId, target.directoryId));
+    });
+    document.addEventListener('pointerdown', (event) => { if (!(event.target as Element).closest('#context-menu')) this.hideContextMenu(); }, { signal: this.events.signal });
+    window.addEventListener('blur', () => this.hideContextMenu(), { signal: this.events.signal });
+    window.addEventListener('resize', () => this.hideContextMenu(), { signal: this.events.signal });
     el('inspector').addEventListener('click', (event) => {
       const button = (event.target as Element).closest<HTMLButtonElement>('button'); if (!button) return;
       const id = button.dataset.fileId ? Number(button.dataset.fileId) : this.detail?.file.id;
@@ -153,6 +174,7 @@ export class App {
         select: (ids, additive) => this.select(ids, additive), drill: (node) => this.drill(node),
         drag: (active, x, y) => this.drag(active, x, y),
         drop: (ids, x, y) => { if (this.overDropzone(x, y)) void this.addToPlan(ids); },
+        context: (fileId, x, y) => this.showContextMenu({ fileId }, x, y),
         error: (error) => { this.setMode('list'); this.notify(errorMessage(error), true); },
       }); } catch (error) { this.setMode('list'); this.notify(errorMessage(error), true); }
     }
@@ -289,6 +311,27 @@ export class App {
     this.changeFilter({ directoryId });
     el('file-list').scrollTop = 0;
   }
+  private showContextMenu(target: { fileId: number } | { directoryId: number }, x: number, y: number): void {
+    if (!this.status || busy(this.status.phase) || this.mutation) return;
+    this.contextTarget = target;
+    const menu = el('context-menu');
+    if ('fileId' in target) {
+      this.select([target.fileId], false);
+      menu.innerHTML = ui`<button role="menuitem" data-context-action="open">${icon('open')}Открыть файл</button><button role="menuitem" data-context-action="reveal-file">${icon('folder')}${revealLabel('file')}</button>`;
+    } else {
+      menu.innerHTML = ui`<button role="menuitem" data-context-action="reveal-directory">${icon('folder')}${revealLabel('folder')}</button>`;
+    }
+    menu.hidden = false;
+    const bounds = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - bounds.width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - bounds.height - 8))}px`;
+    menu.querySelector<HTMLButtonElement>('button')?.focus();
+  }
+  private hideContextMenu(): void {
+    const menu = el('context-menu');
+    menu.hidden = true;
+    this.contextTarget = null;
+  }
   private renderList(): void {
     if (!this.view) return;
     const view = this.view;
@@ -296,7 +339,7 @@ export class App {
     if (this.filter.folders) {
       el('file-list').innerHTML = ui`<table><thead><tr><th></th><th>Имя</th><th>Размер</th><th>Доля</th><th>Файлов</th></tr></thead><tbody>${view.entries.map(entry => {
         const file = entry.file, share = view.bytes ? entry.bytes / view.bytes * 100 : 0;
-        return `<tr ${file ? `data-file-id="${file.id}"` : ''} class="${file && this.selection.has(file.id) ? 'selected' : ''} ${file && this.planned.has(file.id) ? 'planned' : ''}"><td>${file ? `<input type="checkbox" aria-label="${ui('Выбрать')} ${esc(file.name)}" ${this.selection.has(file.id) ? 'checked' : ''}>` : icon('folder')}</td><td>${entry.directoryId !== null ? `<button class="directory-link" data-directory="${entry.directoryId}" title="${esc(entry.name)}"><strong>${esc(entry.name)}</strong><span>›</span></button>` : `<div class="file-name-cell" title="${esc(entry.name)}"><span class="color-dot" style="background:${colors[file!.category]}"></span><strong>${esc(entry.name)}</strong></div>`}</td><td class="size-cell">${formatBytes(entry.bytes)}</td><td><div class="size-share"><span class="size-bar" style="width:${Math.min(100, share)}%"></span><span>${share.toLocaleString(intlLocale(), { maximumFractionDigits: 1 })}%</span></div></td><td>${number(entry.count)}</td></tr>`;
+        return `<tr ${file ? `data-file-id="${file.id}"` : `data-directory-id="${entry.directoryId}"`} class="${file && this.selection.has(file.id) ? 'selected' : ''} ${file && this.planned.has(file.id) ? 'planned' : ''}"><td>${file ? `<input type="checkbox" aria-label="${ui('Выбрать')} ${esc(file.name)}" ${this.selection.has(file.id) ? 'checked' : ''}>` : icon('folder')}</td><td>${entry.directoryId !== null ? `<button class="directory-link" data-directory="${entry.directoryId}" title="${esc(entry.name)}"><strong>${esc(entry.name)}</strong><span>›</span></button>` : `<div class="file-name-cell" title="${esc(entry.name)}"><span class="color-dot" style="background:${colors[file!.category]}"></span><strong>${esc(entry.name)}</strong></div>`}</td><td class="size-cell">${formatBytes(entry.bytes)}</td><td><div class="size-share"><span class="size-bar" style="width:${Math.min(100, share)}%"></span><span>${share.toLocaleString(intlLocale(), { maximumFractionDigits: 1 })}%</span></div></td><td>${number(entry.count)}</td></tr>`;
       }).join('')}</tbody></table>${this.pagination(view.offset, view.entryTotal, 'page')}`;
       return;
     }
@@ -343,7 +386,7 @@ export class App {
     if (!detail) { el('inspector').innerHTML = ui`${close}<p class="muted">Загрузка сведений…</p>`; return; }
     const file = detail.file;
     const flags = [file.screenshot ? ui('Возможно, скриншот') : '', file.hardLink ? ui('Жёсткая ссылка') : '', file.allocatedBytes === null ? ui('Размер на диске приблизителен') : '', !file.actionable ? ui('Нет надёжной идентификации') : ''].filter(Boolean);
-    el('inspector').innerHTML = ui`${close}<div class="file-icon" style="background:${colors[file.category]}22;color:${colors[file.category]}">${icon(file.category === 'video' ? 'video' : file.category === 'image' ? 'image' : 'file')}</div><h2 style="margin-top:14px">${esc(file.name)}</h2><div class="file-size">${formatBytes(file.logicalBytes)}</div><div class="file-flags">${flags.map((flag) => `<span class="badge">${flag}</span>`).join('')}</div><div class="file-meta"><div class="meta-row"><span>Тип</span><span>${categoryLabel(file.category)}</span></div><div class="meta-row"><span>На диске</span><span>${file.allocatedBytes === null ? '≈ ' : ''}${formatBytes(file.allocatedBytes ?? file.logicalBytes)}</span></div><div class="meta-row"><span>Вклад в карту</span><span>${formatBytes(this.filter.metric === 'allocated' ? file.chargedBytes : file.logicalBytes)}</span></div><div class="meta-row"><span>Изменён</span><span>${date(file.modifiedMs)}</span></div></div><p class="file-path">${esc(detail.path)}</p><div class="inspector-actions"><button class="secondary" data-action="open" ${disabled}>${icon('open')}Открыть</button><button class="secondary" data-action="reveal" ${disabled}>${icon('folder')}Показать в папке</button><button class="danger-secondary" data-action="trash" ${disabled || !file.actionable ? 'disabled' : ''}>${icon('trash')}В список удаления</button></div>${detail.duplicateCount ? ui`<div class="duplicate-info">Найдены точные копии: ${detail.duplicateCount}${detail.duplicates.map((copy) => `<button data-action="select" data-file-id="${copy.id}">${esc(copy.relativePath)}</button>`).join('')}<button data-action="group">Показать группу на карте</button><small>Совпадение полных хешей на момент проверки. Ни одна копия не удаляется автоматически.</small></div>` : ''}`;
+    el('inspector').innerHTML = ui`${close}<div class="file-icon" style="background:${colors[file.category]}22;color:${colors[file.category]}">${icon(file.category === 'video' ? 'video' : file.category === 'image' ? 'image' : 'file')}</div><h2 style="margin-top:14px">${esc(file.name)}</h2><div class="file-size">${formatBytes(file.logicalBytes)}</div><div class="file-flags">${flags.map((flag) => `<span class="badge">${flag}</span>`).join('')}</div><div class="file-meta"><div class="meta-row"><span>Тип</span><span>${categoryLabel(file.category)}</span></div><div class="meta-row"><span>На диске</span><span>${file.allocatedBytes === null ? '≈ ' : ''}${formatBytes(file.allocatedBytes ?? file.logicalBytes)}</span></div><div class="meta-row"><span>Вклад в карту</span><span>${formatBytes(this.filter.metric === 'allocated' ? file.chargedBytes : file.logicalBytes)}</span></div><div class="meta-row"><span>Изменён</span><span>${date(file.modifiedMs)}</span></div></div><p class="file-path">${esc(detail.path)}</p><div class="inspector-actions"><button class="secondary" data-action="open" ${disabled}>${icon('open')}Открыть</button><button class="secondary" data-action="reveal" ${disabled}>${icon('folder')}${revealLabel('file')}</button><button class="danger-secondary" data-action="trash" ${disabled || !file.actionable ? 'disabled' : ''}>${icon('trash')}В список удаления</button></div>${detail.duplicateCount ? ui`<div class="duplicate-info">Найдены точные копии: ${detail.duplicateCount}${detail.duplicates.map((copy) => `<button data-action="select" data-file-id="${copy.id}">${esc(copy.relativePath)}</button>`).join('')}<button data-action="group">Показать группу на карте</button><small>Совпадение полных хешей на момент проверки. Ни одна копия не удаляется автоматически.</small></div>` : ''}`;
   }
   private async openFile(id: number): Promise<void> {
     await this.act(async (scanId) => {
@@ -448,7 +491,7 @@ export class App {
     if (modifier && event.key.toLowerCase() === 'f') { event.preventDefault(); el<HTMLInputElement>('search').focus(); return; }
     if (modifier && event.key.toLowerCase() === 'o') { event.preventDefault(); void this.choose(false); return; }
     if (typing) return;
-    if (event.key === 'Escape') this.select([], false);
+    if (event.key === 'Escape') { if (this.contextTarget) this.hideContextMenu(); else this.select([], false); }
     if (event.key === 'Delete' || (event.metaKey && event.key === 'Backspace')) { event.preventDefault(); void this.addToPlan([...this.selection]); }
     if (event.altKey && event.key === 'ArrowUp' && this.filter.folders && this.view?.breadcrumbs.length && this.view.breadcrumbs.length > 1) { event.preventDefault(); this.enterDirectory(this.view.breadcrumbs.at(-2)!.id); }
     if (modifier && event.key.toLowerCase() === 'a' && this.view) { event.preventDefault(); this.select(!this.filter.folders && this.mode === 'map' ? this.map?.visibleIds() ?? [] : this.view.files.map((f) => f.id), false); }

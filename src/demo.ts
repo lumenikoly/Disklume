@@ -89,7 +89,8 @@ export class DemoBackend implements Backend {
       && (filter.olderDays === null || (f.modifiedMs !== null && now - f.modifiedMs >= filter.olderDays * 86_400_000))
       && f.relativePath.toLowerCase().includes(text)
       && (!filter.bucket || (f.category === filter.bucket.category && f.ageBucket === filter.bucket.age && f.screenshot === filter.bucket.screenshot
-        && (size(f) < filter.bucket.after.bytes || (size(f) === filter.bucket.after.bytes && f.id > filter.bucket.after.id)))))
+        && (size(f) < filter.bucket.after.bytes || (size(f) === filter.bucket.after.bytes && f.id > filter.bucket.after.id))
+        && (size(f) > filter.bucket.through.bytes || (size(f) === filter.bucket.through.bytes && f.id <= filter.bucket.through.id)))))
       .sort((a, b) => size(b) - size(a) || a.id - b.id);
     const currentId = filter.directoryId ?? 0;
     const currentDir = this.directories.get(currentId);
@@ -115,18 +116,23 @@ export class DemoBackend implements Backend {
       ageBucket: f.ageBucket, fileId: f.id, duplicateGroup: f.duplicateGroup, screenshot: f.screenshot, bucket: null }));
     if (files.length > 480) {
       const last = files[479]!;
-      const groups = new Map<string, MapNode>();
-      for (const f of files.slice(480)) {
-        const key = `g${f.category}${f.ageBucket}${f.screenshot}`;
-        let node = groups.get(key);
-        if (!node) {
-          const bucket: Bucket = { category: f.category, age: f.ageBucket, screenshot: f.screenshot, after: { bytes: size(last), id: last.id } };
-          node = { key, label: '', bytes: 0, count: 0, category: f.category, ageBucket: f.ageBucket, fileId: null, duplicateGroup: null, screenshot: f.screenshot, bucket };
-          groups.set(key, node);
-        }
-        node.count++; node.bytes += size(f); node.label = `Ещё ${node.count} файлов`;
+      const natural = new Map<string, FileSummary[]>();
+      for (const f of files.slice(480)) { const key = `${f.category}:${f.ageBucket}:${f.screenshot}`; const rows = natural.get(key) ?? []; rows.push(f); natural.set(key, rows); }
+      const grouped = [...natural.values()].map(rows => ({ rows, parts: 1 }));
+      const budget = Math.min(96, files.length - 480);
+      while (grouped.reduce((sum, group) => sum + group.parts, 0) < budget) {
+        const splittable = grouped.filter(group => group.parts < group.rows.length).sort((a, b) => Math.ceil(b.rows.length / b.parts) - Math.ceil(a.rows.length / a.parts))[0];
+        if (!splittable) break; splittable.parts++;
       }
-      nodes.push(...groups.values());
+      for (const { rows, parts } of grouped) {
+        const chunkSize = Math.ceil(rows.length / parts);
+        for (let start = 0; start < rows.length; start += chunkSize) {
+          const chunk = rows.slice(start, start + chunkSize), first = chunk[0]!, end = chunk.at(-1)!;
+          const previous = start ? rows[start - 1]! : last;
+          const bucket: Bucket = { category: first.category, age: first.ageBucket, screenshot: first.screenshot, after: { bytes: size(previous), id: previous.id }, through: { bytes: size(end), id: end.id } };
+          nodes.push({ key: `g${first.category}${first.ageBucket}${first.screenshot}-${previous.id}-${end.id}`, label: `Ещё ${chunk.length} файлов`, bytes: chunk.reduce((sum, f) => sum + size(f), 0), count: chunk.length, category: first.category, ageBucket: first.ageBucket, fileId: null, duplicateGroup: null, screenshot: first.screenshot, bucket });
+        }
+      }
     }
     offset = Math.min(offset, Math.floor(Math.max(0, files.length - 1) / 200) * 200);
     return { scanId: id, revision: this.revision, total: files.length, bytes: files.reduce((sum, f) => sum + size(f), 0), offset,
@@ -176,4 +182,5 @@ export class DemoBackend implements Backend {
     throw new Error('Это пример: настоящие файлы не открываются.');
   }
   async reveal(id: number, fileId: number): Promise<void> { this.check(id); this.get(fileId); throw new Error('Это пример: системный файловый менеджер не запускается.'); }
+  async revealDirectory(id: number, directoryId: number): Promise<void> { this.check(id); if (!this.directories.has(directoryId)) throw new Error('Неизвестная папка.'); throw new Error('Это пример: системный файловый менеджер не запускается.'); }
 }

@@ -1,4 +1,4 @@
-# ClearMap 0.0.1
+# ClearMap 0.0.2
 
 [Русская версия](README.md)
 

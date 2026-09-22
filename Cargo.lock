@@ -492,7 +492,7 @@ dependencies = [
 
 [[package]]
 name = "clearmap"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "clearmap-core",
  "tauri",
@@ -503,7 +503,7 @@ dependencies = [
 
 [[package]]
 name = "clearmap-core"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "blake3",
  "dunce",
@@ -514,7 +514,6 @@ dependencies = [
  "serde_json",
  "tempfile",
  "trash",
- "walkdir",
  "windows 0.61.3",
 ]
 

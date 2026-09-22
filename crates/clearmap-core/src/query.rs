@@ -46,6 +46,9 @@ pub fn query(index: &Index, filter: &Filter, offset: usize) -> Result<View> {
                 if size > b.after.bytes || (size == b.after.bytes && r.id <= b.after.id) {
                     return false;
                 }
+                if size < b.through.bytes || (size == b.through.bytes && r.id > b.through.id) {
+                    return false;
+                }
             }
             needle.is_empty()
                 || r.relative
@@ -133,6 +136,9 @@ fn matches(index: &Index, r: &Record, filter: &Filter, needle: &str, bucket: boo
                 return false;
             }
             if size > b.after.bytes || (size == b.after.bytes && r.id <= b.after.id) {
+                return false;
+            }
+            if size < b.through.bytes || (size == b.through.bytes && r.id > b.through.id) {
                 return false;
             }
         }
@@ -301,36 +307,79 @@ fn make_nodes(records: &[&Record], metric: Metric, now: u64) -> Vec<MapNode> {
         bytes: last.size(metric),
         id: last.id,
     };
-    let mut groups = BTreeMap::<(Category, u8, bool), (u64, usize)>::new();
+    let mut groups = BTreeMap::<(Category, u8, bool), Vec<&Record>>::new();
     for r in records.iter().skip(MAP_FILES) {
-        let group = groups
+        groups
             .entry((
                 r.category,
                 age_bucket(r.fingerprint.modified.map(time_ms), now),
                 r.screenshot,
             ))
-            .or_default();
-        group.0 = group.0.saturating_add(r.size(metric));
-        group.1 += 1;
+            .or_default()
+            .push(*r);
     }
-    for ((category, age, screenshot), (bytes, count)) in groups {
-        nodes.push(MapNode {
-            key: format!("g{category:?}{age}{screenshot}"),
-            label: format!("Ещё {count} файлов"),
-            bytes,
-            count,
-            category,
-            age_bucket: age,
-            file_id: None,
-            duplicate_group: None,
-            screenshot,
-            bucket: Some(Bucket {
+    // Spend the fixed group budget across natural buckets. A very large homogeneous
+    // bucket is split into cursor ranges, so drill-down is logarithmic rather than
+    // peeling only MAP_FILES entries on every click.
+    let mut grouped: Vec<_> = groups
+        .into_iter()
+        .map(|(key, rows)| (key, rows, 1usize))
+        .collect();
+    let group_budget = 96usize.min(records.len() - MAP_FILES);
+    while grouped.iter().map(|(_, _, parts)| *parts).sum::<usize>() < group_budget {
+        let Some((index, _)) = grouped
+            .iter()
+            .enumerate()
+            .filter(|(_, (_, rows, parts))| *parts < rows.len())
+            .max_by_key(|(_, (_, rows, parts))| rows.len().div_ceil(*parts))
+        else {
+            break;
+        };
+        grouped[index].2 += 1;
+    }
+    for ((category, age, screenshot), rows, parts) in grouped {
+        let chunk_size = rows.len().div_ceil(parts);
+        for (part, chunk) in rows.chunks(chunk_size).enumerate() {
+            let previous = if part == 0 {
+                cursor.clone()
+            } else {
+                let prior = rows[part * chunk_size - 1];
+                Cursor {
+                    bytes: prior.size(metric),
+                    id: prior.id,
+                }
+            };
+            let last = chunk[chunk.len() - 1];
+            let through = Cursor {
+                bytes: last.size(metric),
+                id: last.id,
+            };
+            let bytes = chunk
+                .iter()
+                .fold(0u64, |sum, r| sum.saturating_add(r.size(metric)));
+            let count = chunk.len();
+            nodes.push(MapNode {
+                key: format!(
+                    "g{category:?}{age}{screenshot}-{}-{}",
+                    previous.id, through.id
+                ),
+                label: format!("Ещё {count} файлов"),
+                bytes,
+                count,
                 category,
-                age,
+                age_bucket: age,
+                file_id: None,
+                duplicate_group: None,
                 screenshot,
-                after: cursor.clone(),
-            }),
-        });
+                bucket: Some(Bucket {
+                    category,
+                    age,
+                    screenshot,
+                    after: previous,
+                    through,
+                }),
+            });
+        }
     }
     nodes
 }

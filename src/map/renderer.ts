@@ -9,6 +9,7 @@ export interface MapCallbacks {
   drill(node: MapNode): void;
   drag(active: boolean, x: number, y: number): void;
   drop(ids: number[], x: number, y: number): void;
+  context(fileId: number, x: number, y: number): void;
   error(error: unknown): void;
 }
 interface Gesture { mode: 'pan' | 'select' | 'file'; startX: number; startY: number; x: number; y: number; circle: Circle | null; moved: boolean; additive: boolean }
@@ -51,7 +52,12 @@ export class FileMap {
       if (circle?.node.bucket) this.callbacks.drill(circle.node);
       else { this.camera = zoomAt(this.camera, p.x, p.y, 1.8); this.invalidate(); }
     }, options);
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault(), options);
+    canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const point = this.point(e), world = this.world(point.x, point.y);
+      const circle = hitTest(this.layout.circles, world.x, world.y, this.camera.scale);
+      if (circle?.node.fileId !== null && circle?.node.fileId !== undefined) this.callbacks.context(circle.node.fileId, e.clientX, e.clientY);
+    }, options);
     this.observer = new ResizeObserver(() => this.resize()); this.observer.observe(canvas.parentElement!);
     this.resize();
   }

@@ -177,6 +177,19 @@ impl Engine {
         }
         metadata::validate(&root, identity, &record)
     }
+    pub fn checked_directory_path(&self, scan_id: u64, id: u64) -> Result<PathBuf> {
+        let _guard = self.gate()?;
+        let (root, identity, relative) =
+            self.session(scan_id)?.with_index(|index| -> Result<_> {
+                index.require_idle()?;
+                Ok((
+                    index.root.clone(),
+                    index.root_identity,
+                    index.directory(id)?.relative.clone(),
+                ))
+            })?;
+        metadata::validate_directory(&root, identity, &relative)
+    }
     pub fn find_duplicates(&self, scan_id: u64) -> Result<()> {
         let _guard = self.gate()?;
         let session = self.session(scan_id)?;

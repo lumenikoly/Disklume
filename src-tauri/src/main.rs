@@ -168,6 +168,22 @@ async fn reveal_file(
     })
     .await
 }
+#[tauri::command]
+async fn reveal_directory(
+    app: tauri::AppHandle,
+    state: AppState<'_>,
+    scan_id: u64,
+    id: u64,
+) -> Result<()> {
+    let e = state.inner().clone();
+    blocking(move || {
+        let path = e.checked_directory_path(scan_id, id)?;
+        app.opener()
+            .reveal_item_in_dir(path)
+            .map_err(|e| format!("Не удалось показать папку в системном менеджере: {e}"))
+    })
+    .await
+}
 fn main() {
     tauri::Builder::default()
         .manage(Language::default())
@@ -192,7 +208,7 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![set_language, choose_folder, rescan, get_current_status, get_status, query_view, get_details, cancel_job, find_duplicates, plan_add, plan_remove, plan_clear, get_plan, execute_plan, open_file, reveal_file])
+        .invoke_handler(tauri::generate_handler![set_language, choose_folder, rescan, get_current_status, get_status, query_view, get_details, cancel_job, find_duplicates, plan_add, plan_remove, plan_clear, get_plan, execute_plan, open_file, reveal_file, reveal_directory])
         .run(tauri::generate_context!())
         .expect("Не удалось запустить ClearMap");
 }

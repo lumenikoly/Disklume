@@ -435,6 +435,12 @@
           "markdownDescription": "Enables the rescan command without any pre-configured scope."
         },
         {
+          "description": "Enables the reveal_directory command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-reveal-directory",
+          "markdownDescription": "Enables the reveal_directory command without any pre-configured scope."
+        },
+        {
           "description": "Enables the reveal_file command without any pre-configured scope.",
           "type": "string",
           "const": "allow-reveal-file",
@@ -529,6 +535,12 @@
           "type": "string",
           "const": "deny-rescan",
           "markdownDescription": "Denies the rescan command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the reveal_directory command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-reveal-directory",
+          "markdownDescription": "Denies the reveal_directory command without any pre-configured scope."
         },
         {
           "description": "Denies the reveal_file command without any pre-configured scope.",

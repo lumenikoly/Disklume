@@ -8,6 +8,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('language switch translates controls and preserves the current plan', async ({ page }) => {
+  await page.click('#browse-files');
   await page.click('#mode-list');
   await page.click('tr[data-file-id="1"]');
   await page.keyboard.press('Delete');
@@ -49,6 +50,7 @@ test('map and controls fit supported window sizes', async ({ page }) => {
 });
 
 test('search and selection open the correct inspector', async ({ page }) => {
+  await page.click('#browse-files');
   await page.click('#mode-list');
   await page.locator('#search').fill('Летнее путешествие');
   await expect(page.locator('tr[data-file-id]')).toHaveCount(2);
@@ -61,6 +63,7 @@ test('search and selection open the correct inspector', async ({ page }) => {
 });
 
 test('Delete stages a plan; review cancellation does not delete', async ({ page }) => {
+  await page.click('#browse-files');
   await page.click('#mode-list'); await page.click('tr[data-file-id="1"]');
   await page.keyboard.press('Delete');
   await expect(page.locator('#plan-count')).toContainText('1 файл');
@@ -72,6 +75,7 @@ test('Delete stages a plan; review cancellation does not delete', async ({ page 
 });
 
 test('confirmation removes only the chosen synthetic file', async ({ page }) => {
+  await page.click('#browse-files');
   await page.click('#mode-list'); await page.click('tr[data-file-id="1"]'); await page.keyboard.press('Delete');
   await page.click('#review-open'); await page.click('#review-confirm');
   await expect(page.locator('#total-count')).toHaveText('972');
@@ -99,7 +103,8 @@ test('help uses a native dialog and Escape closes it', async ({ page }) => {
 });
 
 test('folders show recursive sizes and navigate down and up without selecting directories', async ({ page }) => {
-  await page.click('#browse-folders');
+  await expect(page.locator('#browse-folders')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#file-list')).toBeVisible();
   const video = page.locator('.directory-link', { hasText: 'Видео' });
   await expect(video).toBeVisible();
   await expect(video.locator('xpath=ancestor::tr')).toContainText('29,2');
@@ -124,6 +129,21 @@ test('folders show recursive sizes and navigate down and up without selecting di
   await page.click('#browse-files');
   await expect(page.locator('#map-region')).toBeVisible();
   await expect(page.locator('#view-count')).toContainText('972');
+});
+
+test('context menu exposes file and folder system actions', async ({ page }) => {
+  const fileRow = page.locator('#file-list tr[data-file-id]').first();
+  await fileRow.click({ button: 'right' });
+  await expect(page.locator('#context-menu')).toBeVisible();
+  await expect(page.locator('#context-menu')).toContainText('Открыть файл');
+  await expect(page.locator('#context-menu')).toContainText('Показать файл в Проводнике');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#context-menu')).toBeHidden();
+
+  const directoryRow = page.locator('#file-list tr[data-directory-id]').first();
+  await directoryRow.click({ button: 'right' });
+  await expect(page.locator('#context-menu')).toBeVisible();
+  await expect(page.locator('#context-menu')).toContainText('Показать папку в Проводнике');
 });
 
 test('folder filters, pagination and language stay in the current directory', async ({ page }) => {

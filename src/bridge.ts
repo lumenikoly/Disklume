@@ -23,4 +23,5 @@ export class NativeBackend implements Backend {
   executePlan(scanId: number, planRevision: number) { return invoke<void>('execute_plan', { scanId, planRevision }); }
   open(scanId: number, id: number, allowExecutable: boolean) { return invoke<void>('open_file', { scanId, id, allowExecutable }); }
   reveal(scanId: number, id: number) { return invoke<void>('reveal_file', { scanId, id }); }
+  revealDirectory(scanId: number, id: number) { return invoke<void>('reveal_directory', { scanId, id }); }
 }

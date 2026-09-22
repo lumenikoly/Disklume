@@ -3,11 +3,18 @@ import assert from 'node:assert/strict';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { DemoBackend } from '../dist/app/demo.js';
 import { defaultFilter, busy } from '../dist/app/types.js';
+import { revealLabel } from '../dist/app/platform.js';
 async function ready(backend,id) {
   for(let n=0;n<100;n++){const s=await backend.status(id);if(!busy(s.phase))return s;await sleep(20);}
   throw Error('Demo worker did not finish');
 }
 async function fixture(){const b=new DemoBackend(),id=await b.chooseFolder();await ready(b,id);return {b,id};}
+
+test('file manager labels follow the operating system',()=>{
+  assert.equal(revealLabel('file','Windows NT 10.0'),'Показать файл в Проводнике');
+  assert.equal(revealLabel('folder','Macintosh; Intel Mac OS X'),'Показать папку в Finder');
+  assert.equal(revealLabel('folder','X11; Linux x86_64'),'Показать папку в файловом менеджере');
+});
 
 test('demo is explicit; no native APIs are required', async()=>{
   const {b,id}=await fixture();assert.equal(b.demo,true);assert.equal((await b.status(id)).files,973);
@@ -22,11 +29,13 @@ test('aggregation preserves count and bytes with a bounded frontend', async()=>{
 });
 test('bucket cursor does not select files already drawn individually', async()=>{
   const {b,id}=await fixture(),filter=defaultFilter(),v=await b.query(id,filter,0),drawn=new Set(v.nodes.map(n=>n.fileId));
+  let grouped=0;
   for(const n of v.nodes.filter(n=>n.bucket)){
     const child=await b.query(id,{...filter,bucket:n.bucket},0);
     assert.equal(child.total,n.count);assert.equal(child.bytes,n.bytes);
-    assert.ok(child.files.every(f=>!drawn.has(f.id)));assert.ok(child.total<v.total);
+    assert.ok(child.files.every(f=>!drawn.has(f.id)));assert.ok(child.total<v.total);grouped+=child.total;
   }
+  assert.equal(grouped,v.total-480);
 });
 test('search and screenshot classification are applied together', async()=>{
   const {b,id}=await fixture();

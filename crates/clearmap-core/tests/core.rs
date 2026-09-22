@@ -110,6 +110,39 @@ fn scans_nested_unicode_and_empty_files() {
         .iter()
         .any(|x| x.screenshot && x.category == Category::Image));
 }
+
+#[test]
+fn parallel_scan_covers_wide_and_nested_directories() {
+    let f = Fixture::new(false);
+    for directory in 0..48 {
+        for file in 0..4 {
+            f.write(
+                &format!("branch-{directory}/nested-{file}/file-{file}.bin"),
+                &[directory as u8, file as u8],
+            );
+        }
+        fs::create_dir_all(f.root.join(format!("branch-{directory}/empty"))).unwrap();
+    }
+
+    let id = f.scan();
+    let status = f.engine.status(id).unwrap();
+    assert_eq!(status.files, 192);
+    assert_eq!(status.logical_bytes, 384);
+
+    let root = f
+        .engine
+        .query(
+            id,
+            Filter {
+                folders: true,
+                ..Filter::default()
+            },
+            0,
+        )
+        .unwrap();
+    assert_eq!(root.entries.len(), 48);
+    assert!(root.entries.iter().all(|entry| entry.count == 4));
+}
 #[test]
 fn classifier_is_case_insensitive_and_flags_launchable_files() {
     assert_eq!(metadata::classify(Path::new("VIDEO.MOV")), Category::Video);
@@ -379,22 +412,26 @@ fn aggregation_is_bounded_and_preserves_totals() {
     assert!(v.nodes.len() <= MAP_FILES + 96);
     assert_eq!(v.nodes.iter().map(|n| n.count).sum::<usize>(), 725);
     assert_eq!(v.nodes.iter().map(|n| n.bytes).sum::<u64>(), 725);
-    let group = v.nodes.iter().find(|n| n.bucket.is_some()).unwrap();
-    let child = f
-        .engine
-        .query(
-            id,
-            Filter {
-                bucket: group.bucket.clone(),
-                ..filter
-            },
-            0,
-        )
-        .unwrap();
-    assert_eq!(child.total, group.count);
-    assert_eq!(child.bytes, group.bytes);
     let visible: Vec<u64> = v.nodes.iter().filter_map(|n| n.file_id).collect();
-    assert!(child.files.iter().all(|f| !visible.contains(&f.id)));
+    let mut grouped = 0;
+    for group in v.nodes.iter().filter(|n| n.bucket.is_some()) {
+        let child = f
+            .engine
+            .query(
+                id,
+                Filter {
+                    bucket: group.bucket.clone(),
+                    ..filter.clone()
+                },
+                0,
+            )
+            .unwrap();
+        assert_eq!(child.total, group.count);
+        assert_eq!(child.bytes, group.bytes);
+        assert!(child.files.iter().all(|file| !visible.contains(&file.id)));
+        grouped += child.total;
+    }
+    assert_eq!(grouped, 725 - MAP_FILES);
 }
 
 #[test]
@@ -449,6 +486,34 @@ fn folder_navigation_aggregates_children_and_keeps_ids_after_recount() {
             0,
         )
         .is_err());
+}
+
+#[test]
+fn directory_reveal_path_uses_scan_and_directory_ids() {
+    let f = Fixture::new(false);
+    f.write("folder/a.txt", b"a");
+    let id = f.scan();
+    let root = f
+        .engine
+        .query(
+            id,
+            Filter {
+                folders: true,
+                ..Filter::default()
+            },
+            0,
+        )
+        .unwrap();
+    let directory_id = root
+        .entries
+        .iter()
+        .find_map(|entry| entry.directory_id)
+        .unwrap();
+    assert_eq!(
+        f.engine.checked_directory_path(id, directory_id).unwrap(),
+        f.root.join("folder")
+    );
+    assert!(f.engine.checked_directory_path(id, u64::MAX).is_err());
 }
 
 #[test]

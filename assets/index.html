@@ -12,7 +12,7 @@
 <body>
   <div id="app">
     <header class="topbar">
-      <a class="brand" href="#" id="brand" aria-label="ClearMap — к началу"><img src="./mark.svg" alt="" width="29" height="29"><span>ClearMap</span><span class="version">0.0.1</span></a>
+      <a class="brand" href="#" id="brand" aria-label="ClearMap — к началу"><img src="./mark.svg" alt="" width="29" height="29"><span>ClearMap</span><span class="version">0.0.2</span></a>
       <span class="top-divider"></span>
       <button id="choose-folder" class="folder-button" title="Выбрать папку (Ctrl / ⌘ + O)"><span data-icon="folder"></span><span id="folder-name">Выбрать папку</span><span class="tiny-arrow">⌄</span></button>
       <div class="top-spacer"></div>
@@ -87,6 +87,7 @@
     </main>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden><span id="toast-message"></span><button id="toast-close" class="icon-button" aria-label="Закрыть уведомление">×</button></div>
+  <div id="context-menu" class="context-menu" role="menu" hidden></div>
   <dialog id="review" class="review-dialog"><div class="dialog-head"><div><span class="eyebrow">ПРОВЕРКА ПЕРЕД УБОРКОЙ</span><h2>Переместить в Корзину?</h2></div><button id="review-close" class="icon-button" aria-label="Закрыть">×</button></div><p class="dialog-note">Файлы можно восстановить средствами системы. Свободное место обычно появится только после очистки Корзины. Приложение её не очищает.</p><div id="review-summary" class="review-summary"></div><div id="review-files" class="review-files"></div><div id="review-pagination" class="pagination"></div><div class="dialog-actions"><span class="muted">Только выбранные файлы</span><div class="top-spacer"></div><button id="review-cancel" class="secondary">Назад</button><button id="review-confirm" class="danger">Переместить в Корзину</button></div></dialog>
   <dialog id="message-dialog" class="message-dialog"><div class="dialog-head"><h2 id="message-title"></h2><button id="message-close" class="icon-button" aria-label="Закрыть">×</button></div><div id="message-body" class="message-body"></div><div class="dialog-actions"><div class="top-spacer"></div><button id="message-cancel" class="secondary">Отмена</button><button id="message-confirm" class="primary">Понятно</button></div></dialog>
 </body>
