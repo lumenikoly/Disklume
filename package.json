@@ -1,9 +1,9 @@
 {
   "name": "clearmap",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "type": "module",
-  "description": "Локальная карта файлов и безопасная уборка через системную Корзину",
+  "description": "A local disk usage map with safe cleanup through the system Trash",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs",

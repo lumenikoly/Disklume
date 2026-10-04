@@ -15,5 +15,6 @@ const server = createServer(async (req, res) => {
     res.end(req.method === 'HEAD' ? undefined : data);
   } catch { res.writeHead(404).end('Not found'); }
 });
-server.listen(1420, '127.0.0.1', () => console.log('ClearMap: локальный сервер UI-тестов запущен на http://127.0.0.1:1420/'));
+const port = Number(process.env.CLEARMAP_TEST_PORT ?? 1421);
+server.listen(port, '127.0.0.1', () => console.log(`ClearMap: локальный сервер UI-тестов запущен на http://127.0.0.1:${port}/`));
 server.on('error', (error) => { console.error(error.message); process.exitCode = 1; });

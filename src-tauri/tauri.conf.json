@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "ClearMap",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "identifier": "local.clearmap.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -11,7 +11,7 @@
   },
   "app": {
     "withGlobalTauri": true,
-    "windows": [{ "label": "main", "title": "ClearMap", "width": 1360, "height": 900, "minWidth": 960, "minHeight": 650, "backgroundColor": "#f4f7f1", "dragDropEnabled": false }],
+    "windows": [{ "label": "main", "title": "ClearMap", "width": 1360, "height": 900, "minWidth": 960, "minHeight": 650, "backgroundColor": "#f6f7fa", "dragDropEnabled": false }],
     "security": {
       "capabilities": ["main"],
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'"

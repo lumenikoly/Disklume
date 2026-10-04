@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version without the v prefix (for example 0.0.2)
+        description: Version without the v prefix (for example 0.0.3)
         required: true
         type: string
 
@@ -35,6 +35,8 @@ jobs:
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Version must match X.Y.Z." >&2; exit 1; }
           test "$(node -p "require('./package.json').version")" = "$VERSION"
           test "$(node -p "require('./src-tauri/tauri.conf.json').version")" = "$VERSION"
+          test "$(node -p "require('./package-lock.json').version")" = "$VERSION"
+          test "$(node -p "require('./package-lock.json').packages[''].version")" = "$VERSION"
           grep -Fxq "version = \"$VERSION\"" Cargo.toml
           test "$(grep -Fxc "# $VERSION" CHANGELOG.md)" -eq 1
           if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
@@ -42,6 +44,15 @@ jobs:
             exit 1
           fi
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
 
   build:
     needs: prepare

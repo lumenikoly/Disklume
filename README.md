@@ -1,38 +1,47 @@
-# ClearMap 0.0.2
+# ClearMap
 
-[English version](README.en.md)
+**See what's taking up space.**
 
-Локальная карта файлов для осторожной уборки папки. Крупные файлы видны на карте, а выбранные элементы можно после повторной проверки перенести в системную Корзину.
+ClearMap is a desktop app that turns a folder into a visual map of its disk usage. Find large files, browse their folders, and decide what to keep.
 
-![Интерфейс ClearMap на искусственных данных](docs/interface.png)
+[Русский](README.ru.md) · [Downloads](https://github.com/lumenikoly/Disklume/releases) · [Release notes](CHANGELOG.md)
 
-## Возможности
+![ClearMap: folder size map, largest-first file list, and selected-file actions](docs/preview.png)
 
-- сканирование выбранной папки и карта с поиском, фильтрами и точным списком;
-- два режима: «Файлы» — круги по размеру без возрастных колец; «Папки» — каталоги и файлы текущего уровня по убыванию размера;
-- суммарные размеры вложенных файлов, доля от текущей папки, переход внутрь и возврат по пути или Alt+↑;
-- поиск дубликатов по полному BLAKE3 после предварительных проверок;
-- открыть файл или показать его в системном файловом менеджере;
-- план удаления с ревизией, проверкой идентичности и переносом в Корзину.
+*Preview uses synthetic files. The app works with folders you choose on your computer.*
 
-Архивирование, сжатие, перезапись, удаление каталогов и безвозвратное удаление не реализованы. Перенос в Корзину сам по себе не обещает освобождение места: Корзину очищает пользователь средствами ОС.
+## Explore your space
 
-В режиме «Папки» поиск и фильтры применяются к вложенным файлам: размеры показывают только совпадения. Без фильтров видны и пустые каталоги. Выбор и Ctrl+A относятся только к файлам текущей страницы; папки открываются для просмотра.
+- **Spot the largest items.** Rectangle area represents disk size; folder sizes include nested files.
+- **Browse naturally.** Click a folder on the map or in the list. Use the path above to go back.
+- **Find a file.** Search names and paths within the current folder.
+- **Take action.** Open a file, reveal it in File Explorer, Finder, or your file manager, or move selected files to Trash after reviewing them.
+- **Use your language.** English and Russian are available, and your preference is saved.
 
-![Просмотр размеров папок](docs/folders.png)
+The map and list show the same page, with up to 200 items. An “On other pages” tile keeps the map proportional to the whole folder. Search sizes reflect matching files. Empty items remain accessible in the list.
 
-## Запуск
+## Get ClearMap
 
-ClearMap — настольное приложение на Tauri, а не сайт и не локальный сервер. Нужны Node.js 22+, стабильный Rust и системные зависимости Tauri. Для Windows установите Visual Studio Build Tools с Desktop development with C++ и WebView2; для macOS — Xcode Command Line Tools; для Linux — WebKitGTK 4.1, WebKit development packages, `libxdo`, OpenSSL, AppIndicator и librsvg. Из корня проекта:
+Download an executable for your platform from [GitHub Releases](https://github.com/lumenikoly/Disklume/releases). Release assets include Windows, macOS, and Linux executables and a `SHA256SUMS` file. Windows requires WebView2; Linux requires the Tauri system runtime libraries.
+
+ClearMap runs locally, without accounts, telemetry, or file uploads. Files go to the system Trash only after confirmation. Moving files to Trash does not guarantee free disk space; disk sizes are estimates. See [safety](docs/SAFETY.md) and [verification](docs/VERIFICATION.md) for platform coverage and native-operation checks.
+
+## Run from source
+
+Requires Node.js 22+, stable Rust, and the system dependencies for Tauri:
+
+- Windows: Visual Studio Build Tools with **Desktop development with C++**, plus WebView2.
+- macOS: Xcode Command Line Tools.
+- Linux: WebKitGTK 4.1 development packages, `libxdo`, OpenSSL, AppIndicator, and librsvg.
 
 ```sh
 npm ci
 npm run desktop
 ```
 
-Переключатель языка приложения сохраняется между запусками.
+## Development
 
-## Проверки
+Run these checks sequentially:
 
 ```sh
 npm run typecheck
@@ -45,12 +54,12 @@ cargo test -p clearmap-core --locked
 npm run tauri -- build --no-bundle
 ```
 
-Перед использованием на личных данных прочитайте [архитектуру](docs/ARCHITECTURE.md), [границы безопасности](docs/SAFETY.md) и [отчёт о проверках](docs/VERIFICATION.md). Отчёт перечисляет выполненные native-проверки и отдельно ограничивает выводы по платформам.
+The TypeScript UI communicates with a Rust core through a narrow Tauri bridge. Native file operations use scan and file IDs; identity checks and confirmed plan revisions stay in Rust. File-operation tests use temporary directories and `TestTrash`. See [architecture](docs/ARCHITECTURE.md).
 
-Тесты файловых операций используют временные каталоги и TestTrash. Проект не отправляет файлы, пути или хеши на сервер, не содержит телеметрии и автоматических обновлений.
+## Release 0.0.3
 
-## Сборка релиза
+The `Release executables` workflow builds portable executables for Windows, macOS, and Linux, computes SHA-256 checksums, and publishes the release notes from [CHANGELOG.md](CHANGELOG.md). See the [release guide](docs/RELEASE.md) for preparation and publication.
 
-В GitHub Actions вручную запускается workflow `Release executables`. Он проверяет версию, собирает нативный исполняемый файл без Tauri bundle на Windows, macOS и Linux и публикует тег `vX.Y.Z` с тремя запускаемыми файлами и `SHA256SUMS`. Установщики, `.dmg`, `.deb`, `.AppImage` и другие пакеты не создаются. Подпись и нотариальное заверение не настроены.
+## License
 
-Лицензия — MIT.
+[MIT](LICENSE).

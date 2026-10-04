@@ -1,35 +1,48 @@
-# Проверки 0.0.2
+# Verification — ClearMap 0.0.3
 
-Дата: 20 сентября 2026. Среда: Windows x64, Node.js 22.18.0, Rust/Cargo 1.98.1, TypeScript 5.8.3, Playwright 1.55.1 / Chromium 140.
+Date: October 4, 2026. Environment: Windows x64, Node.js 22.18.0, Rust/Cargo 1.98.1, TypeScript 5.8.3, Playwright 1.55.1 / Chromium.
 
-| Проверка | Результат |
+| Check | Result |
 | --- | --- |
-| `npm run typecheck` | Пройдена |
-| `npm test` | 33 теста пройдены, включая названия системного файлового менеджера для Windows, macOS и Linux |
-| `npm run test:e2e` | 12 сценариев пройдены, включая контекстное меню файлов и папок |
-| `cargo fmt --all`, затем `cargo fmt --all -- --check` | Пройдены |
-| `cargo clippy -p clearmap-core --all-targets --locked -- -D warnings` | Без предупреждений |
-| `cargo test -p clearmap-core --locked` | 33 теста пройдены на Windows, включая широкое дерево и проверку пути каталога по ID |
-| `npm run tauri -- build --no-bundle` | Windows x64 `.exe` собран |
-| Проверка запуска Windows `.exe` | Метаданные файла содержат версию 0.0.2; процесс успешно запустился и оставался активным до завершения smoke-проверки |
-| `npm audit --omit=optional` | 0 известных уязвимостей в проверенном наборе npm-зависимостей |
+| `npm run typecheck` | Passed |
+| `npm test` | 28 tests passed |
+| `npm run test:e2e` | 15 browser scenarios passed |
+| `cargo fmt --all`, then `cargo fmt --all -- --check` | Passed |
+| `cargo clippy -p clearmap-core --all-targets --locked -- -D warnings` | Passed without warnings |
+| `cargo test -p clearmap-core --locked` | 33 Windows tests passed |
+| `npm run tauri -- build --no-bundle` | Passed; Windows x64 executable built |
+| Windows executable version and startup | FileVersion and ProductVersion are 0.0.3; process remained running during a five-second smoke check |
+| Release workflow YAML | Parsed locally; browser gate and build/publication dependencies checked |
+| Release version inputs and README links | Consistent; local links resolve |
+| Release artifact checksum | SHA-256 generated; release copy matches the built executable |
+| README preview | Captured and visually checked at 1360×900, with English controls and synthetic data |
 
-Файловые тесты используют временные каталоги и TestTrash, настоящая Корзина не затрагивается. Проверены сохранение плана при неудачной смене папки и пересканировании, устаревшие ревизии, изменённые и отсутствующие файлы, ошибки журнала и Корзины, отмена, junction и жёсткие ссылки, дубликаты, ограничение размера карты и полное непересекающееся покрытие диапазонов при раскрытии групп.
+## UI and geometry
 
-UI-сценарии покрывают старт в режиме папок, размеры окна, поиск, выбор, просмотр и отмену плана, подтверждённую операцию над искусственными данными, дубликаты, справку, RU/EN без потери плана и отсутствие нативных вызовов в DemoBackend. Имена и пути не переводятся. Дополнительно проверены вложенные папки, пустые каталоги, размеры жёстких ссылок, пагинация и выбор только показанных файлов. Снимки: [карта RU](interface.png), [карта EN](interface-en.png), [папки RU](folders.png), [папки EN](folders-en.png).
+The UI presents a proportional folder/file map beside a largest-first list, folder navigation, search, and selected-file actions. The README [preview](preview.png) shows the folder overview and file actions together. Additional screenshots cover [overview RU](interface.png), [overview EN](interface-en.png), [selected file RU](folders.png), and [selected file EN](folders-en.png).
 
-## Границы проверки
+Geometry tests cover area proportional to size, total map coverage, deterministic output, finite coordinates, and non-overlapping tiles. Zero-byte entries remain accessible in the list without map area. A page contains up to 200 items; the map can add one tile for the size of the other pages. Browser checks compare this tile's area with its share of the folder.
 
-- macOS и Linux здесь не собирались и не запускались. Для них подготовлена матрица CI; её наличие не означает успешный запуск.
-- Ручные испытания системного диалога выбора папки, открытия файлов внешними программами, показа в файловом менеджере, переноса и восстановления через настоящую Корзину не выполнялись. Сценарии — в [MANUAL-CHECK.md](MANUAL-CHECK.md).
-- Подпись Windows и notarization macOS не настроены; исполняемые файлы публикуются как unsigned portable artifacts.
-- Не измерялись производительность и память на 100 тысячах / миллионе файлов. Аудит Rust-зависимостей по базе RustSec не запускался.
-- GitHub Actions не запускались из этой рабочей папки. Публикации релиза не было.
+Browser scenarios cover map and list navigation, breadcrumbs and Alt+↑, synchronized selection, search and empty results, zero-byte files, pagination, selection from a focused checkbox, and English/Russian language changes preserving names and plans. They also cover opening and revealing synthetic files, executable confirmation, context menus, and confirmed removal of explicitly selected files. Delete opens plan review; Cancel and Escape leave files in place. Confirmed operations use the plan revision.
 
-`Cargo.lock` и `package-lock.json` включены в исходники; CI использует `npm ci` и `--locked`.
+Supported window checks use 960×650, 1360×940, and 1920×1080 with the action panel visible. Browser tests use `DemoBackend` and never invoke native file APIs.
 
-## English
+## Native core
 
-Windows x64 build and startup smoke test were verified. All 33 frontend unit tests, 12 UI scenarios, and 33 Windows Rust tests passed. Rust formatting and Clippy passed. File-operation tests use temporary folders and TestTrash only. macOS/Linux builds, real system Trash integration, clean-machine installation, signing and large-directory benchmarks remain unverified.
+Rust file-operation tests use temporary directories and `TestTrash`, never the real system Trash. They verify stale revisions and session IDs, changed and missing files, journal and Trash errors, cancellation, junctions, hard links, folder totals, and bounded pages.
 
-Локальный Windows-бинарник: `target/release/clearmap.exe`. Публикация кроссплатформенного релиза выполняется workflow `Release executables`; запуск GitHub Actions из этой рабочей папки не выполнялся.
+All release version inputs are set to 0.0.3: npm manifests, workspace package version, ClearMap Cargo lock entries, and Tauri configuration. The release changelog and README links are checked locally. GitHub's release workflow validates versions, runs browser scenarios, and builds native binaries for its platform matrix.
+
+## Scope and limits
+
+- Windows is the locally tested platform. macOS and Linux builds and runtime behavior remain unverified here; the configured CI matrix is not a completed run.
+- System folder-picker interaction, external-file opening, native file-manager behavior, and real Trash/recovery operations were not manually exercised. See [MANUAL-CHECK.md](MANUAL-CHECK.md).
+- Executables are unsigned, and macOS notarization is not configured.
+- Performance and memory on 100,000 or one million real files were not measured. Dependency security audits were not run during this release preparation.
+- GitHub Actions, remote tagging, and GitHub Release publication have not been performed.
+
+Builds and browser tests run sequentially because both recreate `dist/`. The test server uses 127.0.0.1:1421 and accepts `CLEARMAP_TEST_PORT` for another port. Playwright starts its own server.
+
+Local release assets are recorded in [RELEASE.md](RELEASE.md). The prepared Windows x64 executable, SHA256SUMS, and release-notes.md are in `release/`. The startup smoke check confirms process startup only; it does not exercise native file actions.
+
+Local Windows executable SHA-256: `bef533a78802b9f96b91a1043e6cbd2e8bbba7a74903ee881cfc878164372ef3`.
