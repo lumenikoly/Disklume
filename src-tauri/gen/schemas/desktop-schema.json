@@ -411,6 +411,12 @@
           "markdownDescription": "Enables the plan_add command without any pre-configured scope."
         },
         {
+          "description": "Enables the plan_add_directory command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-plan-add-directory",
+          "markdownDescription": "Enables the plan_add_directory command without any pre-configured scope."
+        },
+        {
           "description": "Enables the plan_clear command without any pre-configured scope.",
           "type": "string",
           "const": "allow-plan-clear",
@@ -421,6 +427,12 @@
           "type": "string",
           "const": "allow-plan-remove",
           "markdownDescription": "Enables the plan_remove command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the plan_remove_directory command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-plan-remove-directory",
+          "markdownDescription": "Enables the plan_remove_directory command without any pre-configured scope."
         },
         {
           "description": "Enables the query_view command without any pre-configured scope.",
@@ -513,6 +525,12 @@
           "markdownDescription": "Denies the plan_add command without any pre-configured scope."
         },
         {
+          "description": "Denies the plan_add_directory command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-plan-add-directory",
+          "markdownDescription": "Denies the plan_add_directory command without any pre-configured scope."
+        },
+        {
           "description": "Denies the plan_clear command without any pre-configured scope.",
           "type": "string",
           "const": "deny-plan-clear",
@@ -523,6 +541,12 @@
           "type": "string",
           "const": "deny-plan-remove",
           "markdownDescription": "Denies the plan_remove command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the plan_remove_directory command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-plan-remove-directory",
+          "markdownDescription": "Denies the plan_remove_directory command without any pre-configured scope."
         },
         {
           "description": "Denies the query_view command without any pre-configured scope.",

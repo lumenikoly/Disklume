@@ -31,9 +31,10 @@ export interface Status {
   skippedLinks: number; skippedSpecial: number; issuesCount: number; issues: Issue[];
   elapsedMs: number; currentPath: string; hashBytes: number; hashFiles: number;
   hashCandidates: number; duplicateGroups: number; duplicateFiles: number;
-  planCount: number; planBytes: number; planRevision: number; operation: OperationProgress;
+  planCount: number; planDirectoryCount: number; planBytes: number; planRevision: number; operation: OperationProgress;
 }
-export interface PlanPage { revision: number; count: number; logicalBytes: number; offset: number; files: FileSummary[] }
+export interface PlanDirectory { id: number; name: string; relativePath: string; logicalBytes: number; fileCount: number }
+export interface PlanPage { revision: number; count: number; logicalBytes: number; offset: number; files: FileSummary[]; directories: PlanDirectory[]; directoryCount: number }
 export interface Backend {
   readonly demo: boolean;
   chooseFolder(discardPlan?: boolean): Promise<number | null>;
@@ -45,6 +46,8 @@ export interface Backend {
   cancel(scanId: number): Promise<void>;
   findDuplicates(scanId: number): Promise<void>;
   planAdd(scanId: number, ids: number[]): Promise<PlanPage>;
+  planAddDirectory(scanId: number, id: number): Promise<PlanPage>;
+  planRemoveDirectory(scanId: number, id: number): Promise<PlanPage>;
   planRemove(scanId: number, ids: number[]): Promise<PlanPage>;
   planClear(scanId: number): Promise<void>;
   planPage(scanId: number, offset: number): Promise<PlanPage>;

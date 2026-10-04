@@ -35,3 +35,9 @@ export function hash(text: string): number {
   for (let i = 0; i < text.length; i++) { value ^= text.charCodeAt(i); value = Math.imul(value, 16777619); }
   return value >>> 0;
 }
+
+export function objectWord(n: number): string {
+  if (locale() === 'en') return n === 1 ? 'item' : 'items';
+  if (n % 100 >= 11 && n % 100 <= 14) return 'объектов';
+  return n % 10 === 1 ? 'объект' : n % 10 >= 2 && n % 10 <= 4 ? 'объекта' : 'объектов';
+}

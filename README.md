@@ -13,9 +13,9 @@ ClearMap is a desktop app that turns a folder into a visual map of its disk usag
 ## Explore your space
 
 - **Spot the largest items.** Rectangle area represents disk size; folder sizes include nested files.
-- **Browse naturally.** Click a folder on the map or in the list. Use the path above to go back.
+- **Browse naturally.** Click a folder on the map or in the list. Use Back, Forward, Up, or the breadcrumb path; history restores your search and list position.
 - **Find a file.** Search names and paths within the current folder.
-- **Take action.** Open a file, reveal it in File Explorer, Finder, or your file manager, or move selected files to Trash after reviewing them.
+- **Take action.** Open a file, reveal it in File Explorer, Finder, or your file manager, or move selected files or entire folders to Trash after reviewing them. Right-click a map tile or use the row menu for these actions.
 - **Use your language.** English and Russian are available, and your preference is saved.
 
 The map and list show the same page, with up to 200 items. An “On other pages” tile keeps the map proportional to the whole folder. Search sizes reflect matching files. Empty items remain accessible in the list.
@@ -54,7 +54,7 @@ cargo test -p clearmap-core --locked
 npm run tauri -- build --no-bundle
 ```
 
-The TypeScript UI communicates with a Rust core through a narrow Tauri bridge. Native file operations use scan and file IDs; identity checks and confirmed plan revisions stay in Rust. File-operation tests use temporary directories and `TestTrash`. See [architecture](docs/ARCHITECTURE.md).
+The TypeScript UI communicates with a Rust core through a narrow Tauri bridge. Native file operations use scan, file and directory IDs; identity checks and confirmed plan revisions stay in Rust. File-operation tests use temporary directories and `TestTrash`. See [architecture](docs/ARCHITECTURE.md).
 
 ## Release 0.0.3
 

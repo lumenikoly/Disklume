@@ -112,3 +112,20 @@ test('folder pagination returns selectable files only from the displayed mixed p
   assert.ok(!first.files.some(f=>second.files.some(other=>other.id===f.id)));
   await assert.rejects(b.query(id,{...filter,directoryId:999999},0));
 });
+
+test('folder plans contain the whole subtree, collapse overlaps and obey revision confirmation', async()=>{
+  const {b,id}=await fixture();
+  await b.planAdd(id,[1]); const p=await b.planAddDirectory(id,1);
+  assert.equal(p.count,1);assert.equal(p.directoryCount,1);assert.equal(p.directories[0].fileCount,2);assert.equal(p.files.length,0);
+  assert.equal((await b.status(id)).files,973);
+  await b.planAdd(id,[0,1]);await assert.rejects(b.executePlan(id,p.revision),/изменился/);
+  const next=await b.planPage(id,0);await b.executePlan(id,next.revision);await ready(b,id);
+  assert.equal((await b.status(id)).files,971);assert.equal((await b.status(id)).planCount,0);
+  await assert.rejects(b.revealDirectory(id,2),/Неизвестная/);
+  const root=await b.query(id,{...defaultFilter(),folders:true},0);assert.ok(root.entries.every(e=>e.directoryId!==1));
+});
+test('removing a folder plan and rejecting root leave all synthetic files intact', async()=>{
+  const {b,id}=await fixture();await assert.rejects(b.planAddDirectory(id,0),/корневой/);
+  await b.planAddDirectory(id,1);await assert.rejects(b.chooseFolder(),/очистите/);
+  await b.planRemoveDirectory(id,1);await b.planAddDirectory(id,1);await b.planClear(id);assert.equal((await b.planPage(id,0)).count,0);assert.equal((await b.status(id)).files,973);
+});

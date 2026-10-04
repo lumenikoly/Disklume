@@ -26,7 +26,7 @@
     </main>
     <main id="workspace" hidden>
       <div class="navigation">
-        <nav id="breadcrumbs" class="breadcrumbs" aria-label="Путь"></nav>
+        <div class="history-controls" aria-label="Навигация"><button id="nav-back" class="icon-button" title="Назад (Alt + ←)" aria-label="Назад" disabled><span data-icon="back"></span></button><button id="nav-forward" class="icon-button" title="Вперёд (Alt + →)" aria-label="Вперёд" disabled><span data-icon="forward"></span></button><button id="nav-up" class="icon-button" title="На уровень выше (Alt + ↑)" aria-label="На уровень выше" disabled><span data-icon="up"></span></button></div><nav id="breadcrumbs" class="breadcrumbs" aria-label="Путь"></nav>
         <label class="search"><span data-icon="search"></span><input id="search" type="search" placeholder="Найти файл…" aria-label="Поиск по имени или пути" maxlength="1024" autocomplete="off"><button id="clear-search" class="icon-button" aria-label="Очистить поиск" hidden>×</button></label>
       </div>
       <section class="summary">
@@ -34,7 +34,7 @@
         <span class="map-caption">Больше площадь — больше размер</span>
       </section>
       <section class="explorer" aria-label="Содержимое папки">
-        <div class="map-panel"><div id="treemap" class="treemap" aria-label="Карта размеров"></div><div id="empty-state" class="map-empty" hidden><span data-icon="folder"></span><p id="empty-message"></p></div><div id="zero-state" class="map-empty" hidden><p>Файлы не занимают места на карте</p></div></div>
+        <div class="map-panel"><div id="treemap" class="treemap" aria-label="Карта размеров" role="group"></div><div id="empty-state" class="map-empty" hidden><span data-icon="folder"></span><p id="empty-message"></p></div><div id="zero-state" class="map-empty" hidden><p>Файлы не занимают места на карте</p></div></div>
         <div class="list-panel"><div class="list-heading"><h2>Папки и файлы</h2><span>По размеру</span></div><div id="file-list" class="file-list"></div><aside id="inspector" class="inspector" aria-label="Выбранные файлы" hidden></aside></div>
       </section>
       <section class="actionbar" id="actionbar" hidden><span data-icon="trash"></span><span id="plan-count"></span><div class="top-spacer"></div><button class="text-button" id="plan-clear">Сбросить</button><button class="primary" id="review-open">Проверить и удалить</button></section>

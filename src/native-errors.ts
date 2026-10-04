@@ -1,6 +1,18 @@
 type Translation = { ru: string; en: string };
 
 const exact: Translation[] = [
+  { ru: "Недостаточно надёжных метаданных папки. Обновите папку.", en: "There is not enough reliable folder metadata. Rescan the folder." },
+  { ru: "Папка была заменена после сканирования. Обновите папку.", en: "The folder was replaced after scanning. Rescan the folder." },
+  { ru: "Состав папки изменился. Обновите папку.", en: "The folder contents changed. Rescan the folder." },
+  { ru: "Папка изменилась или содержит ссылку. Обновите папку.", en: "The folder changed or contains a link. Rescan the folder." },
+  { ru: "Папка содержит ссылку или облачный объект. Перенос всей папки запрещён.", en: "The folder contains a link or cloud placeholder. Moving the entire folder is blocked." },
+  { ru: "В папке появились новые или неучтённые файлы. Обновите папку.", en: "New or unindexed files appeared in the folder. Rescan the folder." },
+  { ru: "Состав папки неполный или изменился. Обновите папку.", en: "The folder contents are incomplete or changed. Rescan the folder." },
+  { ru: "Файлы или папки были перемещены после сканирования. Обновите папку.", en: "Files or folders moved after scanning. Rescan the folder." },
+  { ru: "В папке больше 10 000 объектов. Удаляйте её содержимое по частям.", en: "The folder contains more than 10,000 items. Remove its contents in smaller groups." },
+  { ru: "Список удаления заполнен.", en: "The removal list is full." },
+  { ru: "Операция остановлена.", en: "The operation was stopped." },
+  { ru: "Некорректный объект плана.", en: "Invalid plan item." },
   { ru: 'Некорректный идентификатор каталога. Обновите папку.', en: 'Invalid directory identifier. Refresh the folder.' },
   { ru: 'Неизвестная папка.', en: 'Unknown folder.' },
   { ru: 'Остановлено', en: 'Stopped' },
@@ -45,6 +57,8 @@ const exact: Translation[] = [
 ];
 
 const prefixes: Translation[] = [
+  { ru: "Не удалось проверить состав папки: ", en: "Could not verify folder contents: " },
+  { ru: "Папка недоступна: ", en: "The folder is unavailable: " },
   { ru: 'Не удалось переместить в системную Корзину: ', en: 'Could not move item to the system Trash: ' },
   { ru: 'Не удалось подготовить системную Корзину: ', en: 'Could not prepare the system Trash: ' },
   { ru: 'Система не смогла переместить файл в Корзину. Безвозвратное удаление не выполнялось: ', en: 'The system could not move the file to Trash. Permanent deletion was not performed: ' },

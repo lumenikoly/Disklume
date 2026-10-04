@@ -3,7 +3,7 @@
   "date": "2026-10-04",
   "platform": "Windows x64",
   "runner": "npm run test:e2e (@playwright/test 1.55.1)",
-  "passed": 15,
+  "passed": 24,
   "failed": 0,
   "tests": [
     "one screen shows both directory map and size-sorted list",
@@ -20,7 +20,16 @@
     "context menus offer basic file actions and safe folder navigation",
     "executable opening still requires separate confirmation",
     "synthetic test backend never invokes native APIs",
-    "zero-byte files stay available in the list without invented area"
+    "zero-byte files stay available in the list without invented area",
+    "history restores folder, search, page and scroll, and branches on new navigation",
+    "folder menu on map stages entire folder and confirmation preserves neighbors",
+    "row actions and keyboard menu restore focus and selection on Escape",
+    "folder plan covers child files once, and removing folder from review is reversible",
+    "deleting folder while browsing its subtree returns to surviving parent and prunes history",
+    "new navigation cancels pending search and language switch translates navigation and folder review",
+    "deleting a nested folder keeps its surviving parent in history",
+    "completion before command response still updates navigation and plan",
+    "double-clicking a folder enters one level without opening a newly displayed file"
   ],
   "scope": "Synthetic DemoBackend data; not a real system Trash test"
 }

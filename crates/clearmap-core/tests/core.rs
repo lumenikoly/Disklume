@@ -822,3 +822,291 @@ fn non_utf8_filenames_keep_native_path_identity() {
         path.canonicalize().unwrap()
     );
 }
+
+fn directory_id(f: &Fixture, scan: u64, name: &str) -> u64 {
+    f.engine
+        .query(
+            scan,
+            Filter {
+                folders: true,
+                ..Filter::default()
+            },
+            0,
+        )
+        .unwrap()
+        .entries
+        .into_iter()
+        .find(|e| e.name == name)
+        .unwrap()
+        .directory_id
+        .unwrap()
+}
+#[test]
+fn directory_plan_moves_the_complete_tree_once_after_revision_confirmation() {
+    let f = Fixture::new(false);
+    f.write("folder/nested/a.txt", b"original");
+    f.write("neighbor.txt", b"keep");
+    fs::create_dir_all(f.root.join("folder/empty")).unwrap();
+    let scan = f.scan();
+    let dir = directory_id(&f, scan, "folder");
+    let p = f.engine.add_directory_to_plan(scan, dir).unwrap();
+    assert_eq!(p.count, 1);
+    assert_eq!(p.directory_count, 1);
+    assert_eq!(p.directories[0].file_count, 1);
+    assert_eq!(p.logical_bytes, 8);
+    assert!(f.root.join("folder/nested/a.txt").exists());
+    assert!(f.engine.execute_plan(scan, p.revision - 1).is_err());
+    assert!(f.engine.rescan(scan).is_err());
+    f.engine.execute_plan(scan, p.revision).unwrap();
+    let status = wait(&f.engine, scan);
+    assert_eq!(status.operation.succeeded, 1);
+    assert_eq!(status.files, 1);
+    assert_eq!(status.plan_count, 0);
+    assert!(!f.root.join("folder").exists());
+    assert!(f.root.join("neighbor.txt").exists());
+    assert!(f.temp.path().join("test-trash/folder/empty").is_dir());
+    assert_eq!(
+        fs::read(f.temp.path().join("test-trash/folder/nested/a.txt")).unwrap(),
+        b"original"
+    );
+    assert!(f.engine.checked_directory_path(scan, dir).is_err());
+    assert!(f
+        .engine
+        .query(
+            scan,
+            Filter {
+                folders: true,
+                ..Filter::default()
+            },
+            0
+        )
+        .unwrap()
+        .entries
+        .iter()
+        .all(|e| e.name != "folder"));
+}
+#[test]
+fn folder_plan_canonicalizes_parent_child_and_file_overlap() {
+    let f = Fixture::new(false);
+    f.write("folder/nested/a.txt", b"one");
+    f.write("folder/b.txt", b"two");
+    let scan = f.scan();
+    let dir = directory_id(&f, scan, "folder");
+    let child = f
+        .engine
+        .query(
+            scan,
+            Filter {
+                folders: true,
+                directory_id: Some(dir),
+                ..Filter::default()
+            },
+            0,
+        )
+        .unwrap()
+        .entries
+        .into_iter()
+        .find(|e| e.name == "nested")
+        .unwrap()
+        .directory_id
+        .unwrap();
+    let file = f.file_id(scan, "a.txt");
+    f.engine.add_to_plan(scan, vec![file]).unwrap();
+    let child_plan = f.engine.add_directory_to_plan(scan, child).unwrap();
+    assert!(child_plan.files.is_empty());
+    assert_eq!(child_plan.count, 1);
+    let parent = f.engine.add_directory_to_plan(scan, dir).unwrap();
+    assert_eq!(parent.count, 1);
+    assert_eq!(parent.logical_bytes, 6);
+    assert_eq!(f.engine.add_to_plan(scan, vec![file]).unwrap().count, 1);
+    assert_eq!(
+        f.engine.add_directory_to_plan(scan, child).unwrap().count,
+        1
+    );
+    assert!(f.engine.execute_plan(scan, parent.revision).is_err());
+    let removed = f.engine.remove_directory_from_plan(scan, dir).unwrap();
+    assert_eq!(removed.count, 0);
+    assert!(f.root.join("folder/nested/a.txt").exists());
+}
+#[test]
+fn root_and_new_or_missing_subtree_entries_cannot_be_planned() {
+    for change in ["new-file", "new-empty-dir", "missing-file", "missing-dir"] {
+        let f = Fixture::new(false);
+        f.write("folder/a.txt", b"one");
+        fs::create_dir(f.root.join("folder/empty")).unwrap();
+        let scan = f.scan();
+        let dir = directory_id(&f, scan, "folder");
+        assert!(f.engine.add_directory_to_plan(scan, 0).is_err());
+        match change {
+            "new-file" => f.write("folder/new.txt", b"new"),
+            "new-empty-dir" => fs::create_dir(f.root.join("folder/new")).unwrap(),
+            "missing-file" => fs::remove_file(f.root.join("folder/a.txt")).unwrap(),
+            _ => fs::remove_dir(f.root.join("folder/empty")).unwrap(),
+        }
+        assert!(
+            f.engine.add_directory_to_plan(scan, dir).is_err(),
+            "{change}"
+        );
+        assert_eq!(f.engine.plan_page(scan, 0).unwrap().count, 0);
+    }
+}
+#[test]
+fn post_confirmation_subtree_changes_reject_the_entire_move() {
+    for change in [
+        "changed-file",
+        "new-file",
+        "new-dir",
+        "missing-file",
+        "replaced-dir",
+    ] {
+        let f = Fixture::new(false);
+        f.write("folder/a.txt", b"one");
+        fs::create_dir(f.root.join("folder/empty")).unwrap();
+        let scan = f.scan();
+        let dir = directory_id(&f, scan, "folder");
+        let p = f.engine.add_directory_to_plan(scan, dir).unwrap();
+        match change {
+            "changed-file" => f.write("folder/a.txt", b"different"),
+            "new-file" => f.write("folder/new.txt", b"new"),
+            "new-dir" => fs::create_dir(f.root.join("folder/new")).unwrap(),
+            "missing-file" => fs::remove_file(f.root.join("folder/a.txt")).unwrap(),
+            _ => {
+                fs::rename(f.root.join("folder/empty"), f.root.join("saved-empty")).unwrap();
+                fs::create_dir(f.root.join("folder/empty")).unwrap();
+            }
+        }
+        f.engine.execute_plan(scan, p.revision).unwrap();
+        let status = wait(&f.engine, scan);
+        assert_eq!(status.operation.failed, 1, "{change}");
+        assert_eq!(status.plan_count, 1);
+        assert!(f.root.join("folder").is_dir());
+        assert!(!f.temp.path().join("test-trash").exists());
+    }
+}
+#[test]
+fn empty_folder_deletion_is_explicit_and_trash_failure_preserves_tree() {
+    for fail in [false, true] {
+        let f = Fixture::new(fail);
+        fs::create_dir_all(f.root.join("empty/nested")).unwrap();
+        let scan = f.scan();
+        let dir = directory_id(&f, scan, "empty");
+        let p = f.engine.add_directory_to_plan(scan, dir).unwrap();
+        assert_eq!(p.logical_bytes, 0);
+        f.engine.execute_plan(scan, p.revision).unwrap();
+        let status = wait(&f.engine, scan);
+        assert_eq!(status.operation.failed, usize::from(fail));
+        assert_eq!(f.root.join("empty/nested").exists(), fail);
+        if !fail {
+            assert!(f.temp.path().join("test-trash/empty/nested").exists());
+        }
+    }
+}
+#[test]
+fn directory_reveal_and_deletion_reject_replaced_scanned_directory() {
+    let f = Fixture::new(false);
+    f.write("folder/a.txt", b"one");
+    let scan = f.scan();
+    let dir = directory_id(&f, scan, "folder");
+    fs::rename(f.root.join("folder"), f.root.join("saved")).unwrap();
+    f.write("folder/a.txt", b"one");
+    assert!(f.engine.checked_directory_path(scan, dir).is_err());
+    assert!(f.engine.add_directory_to_plan(scan, dir).is_err());
+}
+#[test]
+fn excluded_subtrees_prevent_a_whole_directory_move() {
+    let f = Fixture::new(false);
+    f.write("folder/visible.txt", b"one");
+    f.write("folder/.Trash/unindexed.txt", b"keep");
+    let scan = f.scan();
+    let dir = directory_id(&f, scan, "folder");
+    assert!(f.engine.status(scan).unwrap().skipped_special > 0);
+    assert!(f.engine.add_directory_to_plan(scan, dir).is_err());
+    assert_eq!(f.engine.plan_page(scan, 0).unwrap().count, 0);
+}
+#[cfg(windows)]
+#[test]
+fn junction_inside_a_folder_blocks_planning_and_execution() {
+    for after_plan in [false, true] {
+        let f = Fixture::new(false);
+        f.write("folder/visible.txt", b"one");
+        f.write("outside/keep.txt", b"keep");
+        let scan = f.scan();
+        let dir = directory_id(&f, scan, "folder");
+        let p = if after_plan {
+            Some(f.engine.add_directory_to_plan(scan, dir).unwrap())
+        } else {
+            None
+        };
+        let link = f.root.join("folder/link");
+        let output = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(&link)
+            .arg(f.root.join("outside"))
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        if let Some(p) = p {
+            f.engine.execute_plan(scan, p.revision).unwrap();
+            assert_eq!(wait(&f.engine, scan).operation.failed, 1);
+        } else {
+            assert!(f.engine.add_directory_to_plan(scan, dir).is_err());
+        }
+        assert!(f.root.join("outside/keep.txt").exists());
+        assert!(f.root.join("folder/visible.txt").exists());
+        fs::remove_dir(&link).unwrap();
+    }
+}
+#[cfg(unix)]
+#[test]
+fn skipped_symlinks_prevent_a_whole_directory_move() {
+    use std::os::unix::fs::symlink;
+    let f = Fixture::new(false);
+    f.write("folder/a.txt", b"one");
+    symlink(&f.root, f.root.join("folder/link")).unwrap();
+    let scan = f.scan();
+    let dir = directory_id(&f, scan, "folder");
+    assert!(f.engine.add_directory_to_plan(scan, dir).is_err());
+}
+
+#[test]
+fn mixed_folder_file_plan_pages_are_bounded_and_do_not_repeat() {
+    let f = Fixture::new(false);
+    for n in 0..201 {
+        fs::create_dir(f.root.join(format!("folder-{n:03}"))).unwrap();
+    }
+    f.write("one.txt", b"one");
+    f.write("two.txt", b"two");
+    let scan = f.scan();
+    let filter = Filter {
+        folders: true,
+        ..Filter::default()
+    };
+    let dirs = [0, 200]
+        .into_iter()
+        .flat_map(|offset| {
+            f.engine
+                .query(scan, filter.clone(), offset)
+                .unwrap()
+                .entries
+        })
+        .filter_map(|e| e.directory_id)
+        .collect::<Vec<_>>();
+    for dir in dirs {
+        f.engine.add_directory_to_plan(scan, dir).unwrap();
+    }
+    f.engine.add_to_plan(scan, vec![0, 1]).unwrap();
+    let first = f.engine.plan_page(scan, 0).unwrap();
+    let second = f.engine.plan_page(scan, 200).unwrap();
+    assert_eq!(first.count, 203);
+    assert_eq!(first.directories.len(), 200);
+    assert!(first.files.is_empty());
+    assert_eq!(second.directories.len(), 1);
+    assert_eq!(second.files.len(), 2);
+    assert!(first
+        .directories
+        .iter()
+        .all(|a| second.directories.iter().all(|b| a.id != b.id)));
+    assert_eq!(f.engine.plan_page(scan, usize::MAX).unwrap().offset, 200);
+    f.engine.clear_plan(scan).unwrap();
+    assert_eq!(f.engine.status(scan).unwrap().plan_count, 0);
+}

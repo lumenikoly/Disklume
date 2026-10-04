@@ -1,4 +1,4 @@
-use crate::model::{Category, Record, Result};
+use crate::model::{Category, Directory, DirectoryPlan, Record, Result};
 use std::{
     fs::{self, Metadata},
     path::{Component, Path},
@@ -353,6 +353,101 @@ pub fn validate_directory(
         if !meta.is_dir() || is_link_or_placeholder(&meta) {
             return Err("Путь папки изменился или содержит точку перенаправления.".into());
         }
+    }
+    Ok(path)
+}
+
+pub fn validate_indexed_directory(
+    root: &Path,
+    root_identity: Option<Identity>,
+    directory: &Directory,
+) -> Result<std::path::PathBuf> {
+    if directory.removed || directory.identity.is_none() {
+        return Err("Недостаточно надёжных метаданных папки. Обновите папку.".into());
+    }
+    let path = validate_directory(root, root_identity, &directory.relative)?;
+    let meta = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+    if identity(&path, &meta) != directory.identity {
+        return Err("Папка была заменена после сканирования. Обновите папку.".into());
+    }
+    Ok(path)
+}
+
+/// Require the complete scanned subtree, including empty directories. Unknown,
+/// skipped, changed or missing objects invalidate the whole directory move.
+pub fn validate_directory_plan(
+    root: &Path,
+    root_identity: Option<Identity>,
+    plan: &DirectoryPlan,
+) -> Result<std::path::PathBuf> {
+    use std::collections::{HashMap, HashSet};
+    if plan.directory.relative.as_os_str().is_empty() {
+        return Err("Операция с корневой папкой запрещена.".into());
+    }
+    let path = validate_indexed_directory(root, root_identity, &plan.directory)?;
+    let directories: HashMap<_, _> = plan
+        .directories
+        .iter()
+        .map(|d| (d.relative.as_path(), d))
+        .collect();
+    let files: HashMap<_, _> = plan
+        .files
+        .iter()
+        .map(|f| (f.relative.as_path(), f))
+        .collect();
+    let mut seen_dirs = HashSet::new();
+    let mut seen_files = HashSet::new();
+    let mut pending = vec![plan.directory.relative.clone()];
+    while let Some(relative) = pending.pop() {
+        let directory = directories
+            .get(relative.as_path())
+            .ok_or("Состав папки изменился. Обновите папку.")?;
+        let absolute = root.join(&relative);
+        let meta = fs::symlink_metadata(&absolute).map_err(|e| format!("Папка недоступна: {e}"))?;
+        if !meta.is_dir()
+            || is_link_or_placeholder(&meta)
+            || directory.identity.is_none()
+            || identity(&absolute, &meta) != directory.identity
+            || !same_file_system(root_identity, &absolute, &meta)
+        {
+            return Err("Папка изменилась или содержит ссылку. Обновите папку.".into());
+        }
+        seen_dirs.insert(relative.clone());
+        for entry in fs::read_dir(&absolute)
+            .map_err(|e| format!("Не удалось проверить состав папки: {e}"))?
+        {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let child = relative.join(entry.file_name());
+            let child_path = root.join(&child);
+            let meta = fs::symlink_metadata(&child_path).map_err(|e| e.to_string())?;
+            if is_link_or_placeholder(&meta) {
+                return Err(
+                    "Папка содержит ссылку или облачный объект. Перенос всей папки запрещён."
+                        .into(),
+                );
+            }
+            if meta.is_dir() && directories.contains_key(child.as_path()) {
+                pending.push(child);
+            } else if meta.is_file() {
+                let record = files
+                    .get(child.as_path())
+                    .ok_or("В папке появились новые или неучтённые файлы. Обновите папку.")?;
+                if record.fingerprint.identity.is_none()
+                    || record.fingerprint.modified.is_none()
+                    || Fingerprint::capture(&child_path, &meta) != record.fingerprint
+                {
+                    return Err(
+                        "Файл изменился после сканирования. Обновите папку перед операцией.".into(),
+                    );
+                }
+                seen_files.insert(child);
+            } else {
+                return Err("Состав папки неполный или изменился. Обновите папку.".into());
+            }
+        }
+    }
+    if seen_files.len() != files.len() || seen_dirs.len() != directories.len() {
+        return Err("Файлы или папки были перемещены после сканирования. Обновите папку.".into());
     }
     Ok(path)
 }

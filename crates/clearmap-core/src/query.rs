@@ -192,7 +192,7 @@ fn folder_query(index: &Index, filter: &Filter, offset: usize) -> Result<View> {
         for child in index
             .directories
             .iter()
-            .filter(|d| d.parent == Some(directory_id))
+            .filter(|d| !d.removed && d.parent == Some(directory_id))
         {
             child_dirs.entry(child.id).or_default();
         }

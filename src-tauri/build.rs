@@ -10,6 +10,8 @@ fn main() {
         "cancel_job",
         "find_duplicates",
         "plan_add",
+        "plan_add_directory",
+        "plan_remove_directory",
         "plan_remove",
         "plan_clear",
         "get_plan",

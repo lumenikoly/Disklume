@@ -1,4 +1,8 @@
 const paths: Record<string, string> = {
+  back: '<path d="M19 12H5m6-6-6 6 6 6"/>',
+  forward: '<path d="M5 12h14m-6-6 6 6-6 6"/>',
+  up: '<path d="M12 19V5m-6 6 6-6 6 6"/>',
+  more: '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>',
   folder: '<path d="M3 7V5a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z"/>',
   search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
   refresh: '<path d="M20 8a8 8 0 1 0 .2 8M20 3v5h-5"/>',

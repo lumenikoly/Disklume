@@ -17,6 +17,8 @@ export class NativeBackend implements Backend {
   cancel(scanId: number) { return invoke<void>('cancel_job', { scanId }); }
   findDuplicates(scanId: number) { return invoke<void>('find_duplicates', { scanId }); }
   planAdd(scanId: number, ids: number[]) { return invoke<PlanPage>('plan_add', { scanId, ids }); }
+  planAddDirectory(scanId: number, id: number) { return invoke<PlanPage>('plan_add_directory', { scanId, id }); }
+  planRemoveDirectory(scanId: number, id: number) { return invoke<PlanPage>('plan_remove_directory', { scanId, id }); }
   planRemove(scanId: number, ids: number[]) { return invoke<PlanPage>('plan_remove', { scanId, ids }); }
   planClear(scanId: number) { return invoke<void>('plan_clear', { scanId }); }
   planPage(scanId: number, offset: number) { return invoke<PlanPage>('get_plan', { scanId, offset }); }

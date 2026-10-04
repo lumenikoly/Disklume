@@ -1,5 +1,5 @@
 /** Explicitly synthetic adapter. It never calls native APIs or touches user files. */
-import type { Backend, Bucket, Category, FileDetail, FileSummary, Filter, MapNode, PlanPage, Status, View } from './types.js';
+import type { Backend, Bucket, Category, FileDetail, FileSummary, Filter, MapNode, PlanDirectory, PlanPage, Status, View } from './types.js';
 import { busy } from './types.js';
 import { categories } from './format.js';
 const GiB = 1024 ** 3, MiB = 1024 ** 2;
@@ -10,6 +10,7 @@ export class DemoBackend implements Backend {
   private revision = 0;
   private phase: Status['phase'] = 'ready';
   private plan = new Set<number>();
+  private directoryPlan = new Map<number, PlanDirectory>();
   private planRevision = 0;
   private operation: Status['operation'] = { total: 0, completed: 0, succeeded: 0, failed: 0, errors: [] };
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -60,9 +61,9 @@ export class DemoBackend implements Backend {
   private get(id: number): FileSummary { const file = this.files.find((f) => f.id === id); if (!file) throw new Error('Файл отсутствует.'); return file; }
   async chooseFolder(discardPlan = false): Promise<number> {
     this.idle();
-    if (this.plan.size && !discardPlan) throw new Error('Сначала очистите или примените список удаления.');
+    if ((this.plan.size || this.directoryPlan.size) && !discardPlan) throw new Error('Сначала очистите или примените список удаления.');
     clearTimeout(this.timer); this.scanId++; this.revision++; this.files = this.makeFiles();
-    if (discardPlan) { this.plan.clear(); this.planRevision++; } this.registerDirectories(); this.duplicatesFound = false; this.phase = 'scanning';
+    if (discardPlan) { this.plan.clear(); this.directoryPlan.clear(); this.planRevision++; } this.registerDirectories(); this.duplicatesFound = false; this.phase = 'scanning';
     this.operation = { total: 0, completed: 0, succeeded: 0, failed: 0, errors: [] };
     this.timer = setTimeout(() => { this.phase = 'ready'; this.revision++; }, 250);
     return this.scanId;
@@ -77,7 +78,7 @@ export class DemoBackend implements Backend {
       approximateCount: 0, skippedLinks: 2, skippedSpecial: 0, issuesCount: 0, issues: [], elapsedMs: 250, currentPath: '',
       hashBytes: this.duplicatesFound ? 34 * GiB : 0, hashFiles: this.duplicatesFound ? 12 : 0, hashCandidates: this.duplicatesFound ? 12 : 0,
       duplicateGroups: new Set(duplicateFiles.map((f) => f.duplicateGroup)).size, duplicateFiles: duplicateFiles.length,
-      planCount: this.plan.size, planBytes: [...this.plan].reduce((sum, id) => sum + this.get(id).logicalBytes, 0), planRevision: this.planRevision, operation: structuredClone(this.operation) };
+      planCount: this.plan.size + this.directoryPlan.size, planDirectoryCount: this.directoryPlan.size, planBytes: [...this.directoryPlan.values()].reduce((sum, d) => sum + d.logicalBytes, 0) + [...this.plan].reduce((sum, id) => sum + this.get(id).logicalBytes, 0), planRevision: this.planRevision, operation: structuredClone(this.operation) };
   }
   async query(id: number, filter: Filter, offset: number): Promise<View> {
     this.check(id);
@@ -154,26 +155,46 @@ export class DemoBackend implements Backend {
   }
   async planAdd(id: number, ids: number[]): Promise<PlanPage> {
     this.check(id); this.idle(); ids.forEach((id) => this.get(id));
-    const next = new Set([...this.plan, ...ids]); if (next.size > 10_000) throw new Error('В плане не может быть больше 10 000 файлов.');
+    const next = new Set([...this.plan, ...ids.filter(id => !this.directoryCovered(this.get(id).relativePath))]); if (next.size > 10_000) throw new Error('В плане не может быть больше 10 000 файлов.');
     this.plan = next; this.planRevision++; return this.planPage(id, 0);
   }
+  private directoryCovered(path: string): boolean {
+    return [...this.directoryPlan.values()].some(d => path === d.relativePath || path.startsWith(d.relativePath + '/'));
+  }
+  async planAddDirectory(id: number, directoryId: number): Promise<PlanPage> {
+    this.check(id); this.idle();
+    const dir = this.directories.get(directoryId);
+    if (!dir || directoryId === 0) throw new Error('Операция с корневой папкой запрещена.');
+    if (this.directoryCovered(dir.path)) return this.planPage(id, 0);
+    const files = this.files.filter(f => f.relativePath.startsWith(dir.path + '/'));
+    if (files.length > 10_000) throw new Error('Список удаления заполнен.');
+    for (const file of files) this.plan.delete(file.id);
+    for (const d of this.directoryPlan.values()) if (d.relativePath.startsWith(dir.path + '/')) this.directoryPlan.delete(d.id);
+    this.directoryPlan.set(directoryId, { id: directoryId, name: dir.name, relativePath: dir.path, logicalBytes: files.reduce((n,f) => n + f.logicalBytes, 0), fileCount: files.length });
+    this.planRevision++; return this.planPage(id, 0);
+  }
+  async planRemoveDirectory(id: number, directoryId: number): Promise<PlanPage> { this.check(id); this.idle(); this.directoryPlan.delete(directoryId); this.planRevision++; return this.planPage(id, 0); }
   async planRemove(id: number, ids: number[]): Promise<PlanPage> { this.check(id); this.idle(); ids.forEach((id) => this.plan.delete(id)); this.planRevision++; return this.planPage(id, 0); }
-  async planClear(id: number): Promise<void> { this.check(id); this.idle(); this.plan.clear(); this.planRevision++; }
+  async planClear(id: number): Promise<void> { this.check(id); this.idle(); this.plan.clear(); this.directoryPlan.clear(); this.planRevision++; }
   async planPage(id: number, offset: number): Promise<PlanPage> {
     this.check(id); const files = [...this.plan].sort((a, b) => a - b).map((id) => this.get(id));
-    offset = Math.min(offset, Math.floor(Math.max(0, files.length - 1) / 200) * 200);
-    return { revision: this.planRevision, count: files.length, logicalBytes: files.reduce((sum, f) => sum + f.logicalBytes, 0), offset, files: structuredClone(files.slice(offset, offset + 200)) };
+    const dirs = [...this.directoryPlan.values()], count = files.length + dirs.length;
+    offset = Math.min(offset, Math.floor(Math.max(0, count - 1) / 200) * 200);
+    const directories = dirs.slice(offset, offset + 200);
+    return { revision: this.planRevision, count, directoryCount: dirs.length, directories: structuredClone(directories), logicalBytes: files.reduce((sum, f) => sum + f.logicalBytes, 0) + dirs.reduce((n,d) => n + d.logicalBytes, 0), offset, files: structuredClone(files.slice(Math.max(0, offset - dirs.length), Math.max(0, offset - dirs.length) + 200 - directories.length)) };
   }
+
   async executePlan(id: number, revision: number): Promise<void> {
     this.check(id); this.idle(); if (revision !== this.planRevision) throw new Error('Список изменился. Подтвердите его заново.');
-    if (!this.plan.size) throw new Error('Список пуст.');
-    this.phase = 'deleting'; this.operation = { total: this.plan.size, completed: 0, succeeded: 0, failed: 0, errors: [] };
+    if (!this.plan.size && !this.directoryPlan.size) throw new Error('Список пуст.');
+    this.phase = 'deleting'; this.operation = { total: this.plan.size + this.directoryPlan.size, completed: 0, succeeded: 0, failed: 0, errors: [] };
     this.timer = setTimeout(() => {
-      this.files = this.files.filter((f) => !this.plan.has(f.id)); this.operation.completed = this.operation.total; this.operation.succeeded = this.operation.total;
+      this.files = this.files.filter((f) => !this.plan.has(f.id) && !this.directoryCovered(f.relativePath));
+      for (const d of this.directories.values()) if (this.directoryCovered(d.path)) { this.directories.delete(d.id); this.directoryIds.delete(d.path); } this.operation.completed = this.operation.total; this.operation.succeeded = this.operation.total;
       const counts = new Map<number, number>();
       for (const f of this.files) if (f.duplicateGroup !== null) counts.set(f.duplicateGroup, (counts.get(f.duplicateGroup) ?? 0) + 1);
       for (const f of this.files) if (f.duplicateGroup !== null && (counts.get(f.duplicateGroup) ?? 0) < 2) f.duplicateGroup = null;
-      this.plan.clear(); this.planRevision++; this.phase = 'ready'; this.revision++;
+      this.plan.clear(); this.directoryPlan.clear(); this.planRevision++; this.phase = 'ready'; this.revision++;
     }, 250);
   }
   async open(id: number, fileId: number, allowExecutable: boolean): Promise<void> {

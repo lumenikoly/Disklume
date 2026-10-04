@@ -10,3 +10,7 @@ ClearMap provides a local, visual way to explore folder sizes and review files f
 - Native identity checks and confirmed deletion-plan revisions in the Rust core.
 
 Portable executable assets are built for Windows, macOS, and Linux, with SHA-256 checksums. See [verification](docs/VERIFICATION.md) for tested platforms and native-operation coverage.
+
+- Back, Forward and Up navigation preserves folder search and list position.
+- Folder actions on the map and list include reviewed moves to the system Trash, with complete subtree checks.
+- Keyboard-friendly context menus, visible row actions and refined button feedback.

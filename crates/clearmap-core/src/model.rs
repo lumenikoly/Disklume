@@ -1,7 +1,7 @@
 use crate::metadata::{Fingerprint, Identity};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     path::PathBuf,
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
@@ -244,6 +244,7 @@ pub struct Status {
     pub duplicate_groups: usize,
     pub duplicate_files: usize,
     pub plan_count: usize,
+    pub plan_directory_count: usize,
     pub plan_bytes: u64,
     pub plan_revision: u64,
     pub operation: OperationProgress,
@@ -256,6 +257,39 @@ pub struct PlanPage {
     pub logical_bytes: u64,
     pub offset: usize,
     pub files: Vec<FileSummary>,
+    pub directories: Vec<PlanDirectorySummary>,
+    pub directory_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanDirectorySummary {
+    pub id: u64,
+    pub name: String,
+    pub relative_path: String,
+    pub logical_bytes: u64,
+    pub file_count: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct DirectoryPlan {
+    pub directory: Directory,
+    pub directories: Vec<Directory>,
+    pub files: Vec<Record>,
+}
+impl DirectoryPlan {
+    pub fn summary(&self) -> PlanDirectorySummary {
+        PlanDirectorySummary {
+            id: self.directory.id,
+            name: self.directory.name.clone(),
+            relative_path: self.directory.relative.to_string_lossy().into_owned(),
+            logical_bytes: self
+                .files
+                .iter()
+                .fold(0u64, |n, r| n.saturating_add(r.fingerprint.len)),
+            file_count: self.files.len(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -264,6 +298,8 @@ pub struct Directory {
     pub relative: PathBuf,
     pub parent: Option<u64>,
     pub name: String,
+    pub identity: Option<Identity>,
+    pub removed: bool,
 }
 
 pub struct Index {
@@ -287,6 +323,7 @@ pub struct Index {
     pub current_path: String,
     pub seen: HashSet<Identity>,
     pub plan: BTreeSet<u64>,
+    pub directory_plan: BTreeMap<u64, DirectoryPlan>,
     pub plan_revision: u64,
     pub hash_bytes: u64,
     pub hash_files: usize,
@@ -320,6 +357,7 @@ impl Index {
             current_path: String::new(),
             seen: HashSet::new(),
             plan: BTreeSet::new(),
+            directory_plan: BTreeMap::new(),
             plan_revision: 0,
             hash_bytes: 0,
             hash_files: 0,
@@ -332,6 +370,8 @@ impl Index {
                 relative: PathBuf::new(),
                 parent: None,
                 name: String::new(),
+                identity: root_identity,
+                removed: false,
             }],
             directory_ids: HashMap::from([(PathBuf::new(), 0)]),
         }
@@ -384,13 +424,15 @@ impl Index {
                 relative: path,
                 parent: Some(parent),
                 name,
+                identity: None,
+                removed: false,
             });
         }
     }
     pub fn directory(&self, id: u64) -> Result<&Directory> {
         self.directories
             .get(usize::try_from(id).unwrap_or(usize::MAX))
-            .filter(|directory| directory.id == id)
+            .filter(|directory| directory.id == id && !directory.removed)
             .ok_or_else(|| "Некорректный идентификатор каталога. Обновите папку.".into())
     }
     pub fn breadcrumbs(&self, id: u64) -> Result<Vec<DirectoryCrumb>> {
@@ -473,7 +515,12 @@ impl Index {
             .plan
             .iter()
             .filter_map(|id| self.record(*id).ok())
-            .fold(0u64, |n, r| n.saturating_add(r.fingerprint.len));
+            .fold(0u64, |n, r| n.saturating_add(r.fingerprint.len))
+            .saturating_add(
+                self.directory_plan
+                    .values()
+                    .fold(0u64, |n, p| n.saturating_add(p.summary().logical_bytes)),
+            );
         Status {
             scan_id: self.scan_id,
             revision: self.revision,
@@ -498,7 +545,8 @@ impl Index {
             hash_candidates: self.hash_candidates,
             duplicate_groups: self.duplicate_groups,
             duplicate_files: self.duplicate_files,
-            plan_count: self.plan.len(),
+            plan_count: self.plan.len() + self.directory_plan.len(),
+            plan_directory_count: self.directory_plan.len(),
             plan_bytes,
             plan_revision: self.plan_revision,
             operation: self.operation.clone(),
@@ -510,6 +558,14 @@ impl Index {
         } else {
             Ok(())
         }
+    }
+    pub fn plan_object_count(&self) -> usize {
+        self.plan.len()
+            + self
+                .directory_plan
+                .values()
+                .map(|p| p.files.len() + p.directories.len())
+                .sum::<usize>()
     }
 }
 pub fn time_ms(time: SystemTime) -> u64 {

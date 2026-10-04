@@ -62,7 +62,7 @@ impl Engine {
         if let Some(existing) = &*current {
             existing.with_index(|i| -> Result<()> {
                 i.require_idle()?;
-                if !discard_plan && !i.plan.is_empty() {
+                if !discard_plan && (!i.plan.is_empty() || !i.directory_plan.is_empty()) {
                     return Err("Сначала очистите или примените список удаления.".into());
                 }
                 Ok(())
@@ -179,16 +179,16 @@ impl Engine {
     }
     pub fn checked_directory_path(&self, scan_id: u64, id: u64) -> Result<PathBuf> {
         let _guard = self.gate()?;
-        let (root, identity, relative) =
+        let (root, identity, directory) =
             self.session(scan_id)?.with_index(|index| -> Result<_> {
                 index.require_idle()?;
                 Ok((
                     index.root.clone(),
                     index.root_identity,
-                    index.directory(id)?.relative.clone(),
+                    index.directory(id)?.clone(),
                 ))
             })?;
-        metadata::validate_directory(&root, identity, &relative)
+        metadata::validate_indexed_directory(&root, identity, &directory)
     }
     pub fn find_duplicates(&self, scan_id: u64) -> Result<()> {
         let _guard = self.gate()?;
@@ -218,7 +218,18 @@ impl Engine {
         self.session(scan_id)?.with_index(|i| {
             i.require_idle()?;
             let ids: std::collections::BTreeSet<_> = ids.into_iter().collect();
-            if i.plan.union(&ids).count() > MAX_PLAN {
+            let added = ids
+                .iter()
+                .filter(|id| {
+                    !i.plan.contains(id)
+                        && !i.directory_plan.values().any(|p| {
+                            i.records
+                                .get(**id as usize)
+                                .is_some_and(|r| r.relative.starts_with(&p.directory.relative))
+                        })
+                })
+                .count();
+            if i.plan_object_count() + added > MAX_PLAN {
                 return Err("В плане уже 10 000 файлов. Сначала завершите текущую уборку.".into());
             }
             // Validate the whole request before changing the plan, not a partial prefix.
@@ -231,7 +242,100 @@ impl Engine {
                     ));
                 }
             }
-            i.plan.extend(ids);
+            for id in ids {
+                if !i.directory_plan.values().any(|p| {
+                    i.records[id as usize]
+                        .relative
+                        .starts_with(&p.directory.relative)
+                }) {
+                    i.plan.insert(id);
+                }
+            }
+            i.plan_revision += 1;
+            Ok(plan_page(i, 0))
+        })
+    }
+    pub fn add_directory_to_plan(&self, scan_id: u64, id: u64) -> Result<PlanPage> {
+        let _guard = self.gate()?;
+        let session = self.session(scan_id)?;
+        let (root, identity, plan) = session.with_index(|i| -> Result<_> {
+            i.require_idle()?;
+            let directory = i.directory(id)?.clone();
+            if id == 0 {
+                return Err("Операция с корневой папкой запрещена.".into());
+            }
+            let files = i
+                .records
+                .iter()
+                .filter(|r| !r.removed && r.relative.starts_with(&directory.relative));
+            let directories = i
+                .directories
+                .iter()
+                .filter(|d| !d.removed && d.relative.starts_with(&directory.relative));
+            if files.clone().count() + directories.clone().count() > MAX_PLAN {
+                return Err(
+                    "В папке больше 10 000 объектов. Удаляйте её содержимое по частям.".into(),
+                );
+            }
+            Ok((
+                i.root.clone(),
+                i.root_identity,
+                DirectoryPlan {
+                    directory: directory.clone(),
+                    files: files.cloned().collect(),
+                    directories: directories.cloned().collect(),
+                },
+            ))
+        })?;
+        // Filesystem work is outside the index lock; the mutation gate prevents a
+        // concurrent session change or execution from altering the snapshot.
+        metadata::validate_directory_plan(&root, identity, &plan)?;
+        session.with_index(|i| {
+            if i.directory_plan
+                .values()
+                .any(|p| plan.directory.relative.starts_with(&p.directory.relative))
+            {
+                return Ok(plan_page(i, 0));
+            }
+            let covered = i
+                .plan
+                .iter()
+                .filter(|id| {
+                    i.records[**id as usize]
+                        .relative
+                        .starts_with(&plan.directory.relative)
+                })
+                .count();
+            let child_weight = i
+                .directory_plan
+                .values()
+                .filter(|p| p.directory.relative.starts_with(&plan.directory.relative))
+                .map(|p| p.files.len() + p.directories.len())
+                .sum::<usize>();
+            if i.plan_object_count() - covered - child_weight
+                + plan.files.len()
+                + plan.directories.len()
+                > MAX_PLAN
+            {
+                return Err("Список удаления заполнен.".into());
+            }
+            i.plan.retain(|id| {
+                !i.records[*id as usize]
+                    .relative
+                    .starts_with(&plan.directory.relative)
+            });
+            i.directory_plan
+                .retain(|_, p| !p.directory.relative.starts_with(&plan.directory.relative));
+            i.directory_plan.insert(id, plan);
+            i.plan_revision += 1;
+            Ok(plan_page(i, 0))
+        })
+    }
+    pub fn remove_directory_from_plan(&self, scan_id: u64, id: u64) -> Result<PlanPage> {
+        let _guard = self.gate()?;
+        self.session(scan_id)?.with_index(|i| {
+            i.require_idle()?;
+            i.directory_plan.remove(&id);
             i.plan_revision += 1;
             Ok(plan_page(i, 0))
         })
@@ -255,6 +359,7 @@ impl Engine {
         self.session(scan_id)?.with_index(|i| {
             i.require_idle()?;
             i.plan.clear();
+            i.directory_plan.clear();
             i.plan_revision += 1;
             Ok(())
         })
@@ -270,11 +375,11 @@ impl Engine {
             if i.plan_revision != plan_revision {
                 return Err("Список изменился. Проверьте его и подтвердите заново.".into());
             }
-            if i.plan.is_empty() {
+            if i.plan.is_empty() && i.directory_plan.is_empty() {
                 return Err("Список удаления пуст.".into());
             }
             i.operation = OperationProgress {
-                total: i.plan.len(),
+                total: i.plan.len() + i.directory_plan.len(),
                 ..Default::default()
             };
             i.phase = Phase::Deleting;
@@ -289,26 +394,34 @@ impl Engine {
     }
 }
 fn plan_page(i: &Index, offset: usize) -> PlanPage {
-    let offset = offset.min(i.plan.len().saturating_sub(1) / PAGE_SIZE * PAGE_SIZE);
+    let count = i.plan.len() + i.directory_plan.len();
+    let offset = offset.min(count.saturating_sub(1) / PAGE_SIZE * PAGE_SIZE);
+    let directories = i
+        .directory_plan
+        .values()
+        .skip(offset)
+        .take(PAGE_SIZE)
+        .map(DirectoryPlan::summary)
+        .collect::<Vec<_>>();
+    let files = i
+        .plan
+        .iter()
+        .skip(offset.saturating_sub(i.directory_plan.len()))
+        .take(PAGE_SIZE - directories.len())
+        .filter_map(|id| i.record(*id).ok())
+        .map(|r| r.summary(i.now))
+        .collect();
     PlanPage {
         revision: i.plan_revision,
-        count: i.plan.len(),
+        count,
         offset,
-        logical_bytes: i
-            .plan
-            .iter()
-            .filter_map(|id| i.record(*id).ok())
-            .fold(0u64, |n, r| n.saturating_add(r.fingerprint.len)),
-        files: i
-            .plan
-            .iter()
-            .skip(offset)
-            .take(PAGE_SIZE)
-            .filter_map(|id| i.record(*id).ok())
-            .map(|r| r.summary(i.now))
-            .collect(),
+        logical_bytes: i.status().plan_bytes,
+        files,
+        directories,
+        directory_count: i.directory_plan.len(),
     }
 }
+
 fn spawn(
     session: Arc<Session>,
     name: &str,

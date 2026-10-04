@@ -51,11 +51,12 @@ fn journal(file: &mut File, event: serde_json::Value) -> Result<()> {
         .map_err(|e| format!("Не удалось сохранить журнал: {e}"))
 }
 pub(crate) fn execute(session: Arc<Session>, directory: &Path, trash: &dyn TrashProvider) {
-    let (root, identity, ids, scan_id) = session.with_index(|i| {
+    let (root, identity, ids, directory_plans, scan_id) = session.with_index(|i| {
         (
             i.root.clone(),
             i.root_identity,
             i.plan.iter().copied().collect::<Vec<_>>(),
+            i.directory_plan.values().cloned().collect::<Vec<_>>(),
             i.scan_id,
         )
     });
@@ -81,16 +82,32 @@ pub(crate) fn execute(session: Arc<Session>, directory: &Path, trash: &dyn Trash
             return;
         }
     };
-    for id in ids {
+    let targets = directory_plans
+        .into_iter()
+        .map(|p| (p.directory.id, Some(p)))
+        .chain(ids.into_iter().map(|id| (id, None)));
+    for (id, directory_plan) in targets {
         if session.cancel.load(Ordering::Relaxed) {
             break;
         }
-        let record = session.with_index(|i| i.record(id).cloned());
+        let record = if directory_plan.is_none() {
+            session.with_index(|i| i.record(id).cloned()).map(Some)
+        } else {
+            Ok(None)
+        };
         let result = record.and_then(|record| {
-            let path = metadata::validate(&root, identity, &record)?;
-            journal(&mut log, serde_json::json!({"event":"intent", "scanId":scan_id, "id":id, "path":path.to_string_lossy(), "bytes":record.fingerprint.len, "time":time_ms(SystemTime::now())}))?;
-            // The flush may take time; check again immediately before calling the OS.
-            metadata::validate(&root, identity, &record)?;
+            let validate = || match (&directory_plan, &record) {
+                (Some(plan), _) => metadata::validate_directory_plan(&root, identity, plan),
+                (_, Some(record)) => metadata::validate(&root, identity, record),
+                _ => Err("Некорректный объект плана.".into()),
+            };
+            let path = validate()?;
+            let bytes = directory_plan.as_ref().map(|p| p.summary().logical_bytes).unwrap_or_else(|| record.as_ref().map_or(0, |r| r.fingerprint.len));
+            journal(&mut log, serde_json::json!({"event":"intent", "scanId":scan_id, "id":id, "kind":if directory_plan.is_some() {"directory"} else {"file"}, "path":path.to_string_lossy(), "bytes":bytes, "time":time_ms(SystemTime::now())}))?;
+            // Recheck the entire subtree after the journal flush, immediately
+            // before the trash-only OS call. No recursive permanent deletion.
+            validate()?;
+            if session.cancel.load(Ordering::Relaxed) { return Err("Операция остановлена.".into()); }
             trash.put(&path)
         });
         let result_for_log = match &result {
@@ -99,25 +116,39 @@ pub(crate) fn execute(session: Arc<Session>, directory: &Path, trash: &dyn Trash
         };
         let journal_result = journal(
             &mut log,
-            serde_json::json!({"event":"result", "scanId":scan_id, "id":id, "ok":result.is_ok(), "result":result_for_log, "time":time_ms(SystemTime::now())}),
+            serde_json::json!({"event":"result", "scanId":scan_id, "id":id, "kind":if directory_plan.is_some() {"directory"} else {"file"}, "ok":result.is_ok(), "result":result_for_log, "time":time_ms(SystemTime::now())}),
         );
         session.with_index(|i| {
             i.operation.completed += 1;
             match result {
                 Ok(()) => {
-                    if let Some(record) = i.records.get_mut(id as usize) {
-                        record.removed = true;
+                    if let Some(plan) = &directory_plan {
+                        for record in &plan.files {
+                            i.records[record.id as usize].removed = true;
+                        }
+                        for directory in &plan.directories {
+                            i.directories[directory.id as usize].removed = true;
+                        }
+                        i.directory_plan.remove(&id);
+                    } else {
+                        if let Some(record) = i.records.get_mut(id as usize) {
+                            record.removed = true;
+                        }
+                        i.plan.remove(&id);
                     }
-                    i.plan.remove(&id);
                     i.plan_revision += 1;
                     i.operation.succeeded += 1;
                 }
                 Err(message) => {
                     i.operation.failed += 1;
-                    let path = i
-                        .record(id)
-                        .map(|r| r.relative.to_string_lossy().into_owned())
-                        .unwrap_or_default();
+                    let path = directory_plan
+                        .as_ref()
+                        .map(|p| p.directory.relative.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| {
+                            i.record(id)
+                                .map(|r| r.relative.to_string_lossy().into_owned())
+                                .unwrap_or_default()
+                        });
                     if i.operation.errors.len() < MAX_ISSUES {
                         i.operation.errors.push(Issue { path, message });
                     }

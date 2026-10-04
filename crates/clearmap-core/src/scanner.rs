@@ -22,7 +22,7 @@ const MAX_WORKERS: usize = 8;
 
 enum ScanItem {
     File(Record),
-    Directory(PathBuf),
+    Directory(PathBuf, Option<metadata::Identity>),
     Issue(PathBuf, String),
     SkippedLink,
     SkippedSpecial,
@@ -131,7 +131,9 @@ pub(crate) fn scan(session: Arc<Session>) {
         for item in receiver {
             match item {
                 ScanItem::File(record) => batch.push(record),
-                ScanItem::Directory(directory) => directory_batch.push(directory),
+                ScanItem::Directory(directory, identity) => {
+                    directory_batch.push((directory, identity))
+                }
                 ScanItem::Issue(path, message) => session
                     .with_index(|index| index.issue(path.to_string_lossy().into_owned(), message)),
                 ScanItem::SkippedLink => session.with_index(|index| index.skipped_links += 1),
@@ -230,7 +232,10 @@ fn scan_directory(
                 continue;
             }
             if let Ok(relative) = path.strip_prefix(root) {
-                send(sender, ScanItem::Directory(relative.to_path_buf()));
+                send(
+                    sender,
+                    ScanItem::Directory(relative.to_path_buf(), metadata::identity(&path, &meta)),
+                );
             }
             queue.add(DirectoryWork {
                 path,
@@ -269,7 +274,11 @@ fn send(sender: &SyncSender<ScanItem>, item: ScanItem) {
     let _ = sender.send(item);
 }
 
-fn flush(session: &Session, batch: &mut Vec<Record>, directory_batch: &mut Vec<PathBuf>) {
+fn flush(
+    session: &Session,
+    batch: &mut Vec<Record>,
+    directory_batch: &mut Vec<(PathBuf, Option<metadata::Identity>)>,
+) {
     if batch.is_empty() && directory_batch.is_empty() {
         return;
     }
@@ -281,8 +290,11 @@ fn flush(session: &Session, batch: &mut Vec<Record>, directory_batch: &mut Vec<P
         for record in batch.drain(..) {
             index.push(record);
         }
-        for directory in directory_batch.drain(..) {
+        for (directory, identity) in directory_batch.drain(..) {
             index.register_directory(&directory);
+            if let Some(id) = index.directory_ids.get(&directory) {
+                index.directories[*id as usize].identity = identity;
+            }
         }
         index.revision += 1;
     });

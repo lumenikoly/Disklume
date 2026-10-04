@@ -1,4 +1,12 @@
 export const messages: Record<string, string> = {
+  "Навигация": "Navigation",
+  "Назад (Alt + ←)": "Back (Alt + ←)",
+  "Вперёд (Alt + →)": "Forward (Alt + →)",
+  "На уровень выше (Alt + ↑)": "Up one level (Alt + ↑)",
+  "Вперёд": "Forward",
+  "Действия": "Actions",
+  "объектов": "items",
+  "вся папка": "entire folder",
   "НАЙДЕНО В ПАПКЕ": "MATCHING FILES IN FOLDER",
   "Размер на диске — оценка": "Disk size is an estimate",
   "Что занимает место?": "What's taking up space?",

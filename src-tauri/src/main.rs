@@ -112,6 +112,16 @@ async fn plan_add(state: AppState<'_>, scan_id: u64, ids: Vec<u64>) -> Result<Pl
     blocking(move || e.add_to_plan(scan_id, ids)).await
 }
 #[tauri::command]
+async fn plan_add_directory(state: AppState<'_>, scan_id: u64, id: u64) -> Result<PlanPage> {
+    let e = state.inner().clone();
+    blocking(move || e.add_directory_to_plan(scan_id, id)).await
+}
+#[tauri::command]
+async fn plan_remove_directory(state: AppState<'_>, scan_id: u64, id: u64) -> Result<PlanPage> {
+    let e = state.inner().clone();
+    blocking(move || e.remove_directory_from_plan(scan_id, id)).await
+}
+#[tauri::command]
 async fn plan_remove(state: AppState<'_>, scan_id: u64, ids: Vec<u64>) -> Result<PlanPage> {
     let e = state.inner().clone();
     blocking(move || e.remove_from_plan(scan_id, ids)).await
@@ -208,7 +218,7 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![set_language, choose_folder, rescan, get_current_status, get_status, query_view, get_details, cancel_job, find_duplicates, plan_add, plan_remove, plan_clear, get_plan, execute_plan, open_file, reveal_file, reveal_directory])
+        .invoke_handler(tauri::generate_handler![set_language, choose_folder, rescan, get_current_status, get_status, query_view, get_details, cancel_job, find_duplicates, plan_add, plan_add_directory, plan_remove_directory, plan_remove, plan_clear, get_plan, execute_plan, open_file, reveal_file, reveal_directory])
         .run(tauri::generate_context!())
         .expect("Не удалось запустить ClearMap");
 }
